@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#FFC107</color>
+    <color name="primary_dark">#FFA000</color>
+    <color name="primary_variant">#FFB300</color>
+    <color name="secondary">#5D4037</color>
+    <color name="secondary_variant">#4E342E</color>
+    <color name="background">#FAFAFA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="error">#B00020</color>
+    <color name="on_primary">#000000</color>
+    <color name="on_secondary">#FFFFFF</color>
+    <color name="on_background">#212121</color>
+    <color name="on_surface">#212121</color>
+    <color name="on_error">#FFFFFF</color>
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="divider">#BDBDBD</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="progress_background">#E0E0E0</color>
+    <color name="player_background">#5D4037</color>
+    <color name="primaryLightColorGrey">#ffffff</color>
+
+
+    <color name="black">#000000</color>
+</resources>

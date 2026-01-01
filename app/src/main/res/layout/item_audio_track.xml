@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="@drawable/bg_track_item">
+
+    <!-- Track Number -->
+    <TextView
+        android:id="@+id/track_number"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@drawable/bg_track_number"
+        android:gravity="center"
+        android:textColor="@color/on_primary"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        tools:text="1" />
+
+    <!-- Track Title -->
+    <TextView
+        android:id="@+id/track_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/on_secondary"
+        android:textSize="14sp"
+        tools:text="Track 1" />
+
+    <!-- Play Icon -->
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_play_small"
+        app:tint="@color/on_secondary"
+        xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+</LinearLayout>

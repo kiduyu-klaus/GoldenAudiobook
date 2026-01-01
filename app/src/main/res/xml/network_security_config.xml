@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Enable cleartext traffic for development -->
+    <uses-library
+        android:name="org.apache.http.legacy"
+        android:required="false" />
+</resources>

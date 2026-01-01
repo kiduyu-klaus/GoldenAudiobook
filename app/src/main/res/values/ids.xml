@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navigation menu items -->
+    <item name="nav_home" type="id" />
+    <item name="nav_bestsellers" type="id" />
+    <item name="nav_action" type="id" />
+    <item name="nav_fantasy" type="id" />
+    <item name="nav_romance" type="id" />
+    <item name="nav_mystery" type="id" />
+    <item name="nav_thriller" type="id" />
+    <item name="nav_scifi" type="id" />
+    <item name="nav_classic" type="id" />
+    <item name="nav_settings" type="id" />
+</resources>

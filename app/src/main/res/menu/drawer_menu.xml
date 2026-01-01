@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_home"
+            android:icon="@drawable/ic_home"
+            android:title="@string/homepage" />
+
+        <item
+            android:id="@+id/nav_categories"
+            android:icon="@drawable/ic_category"
+            android:title="@string/all_categories" />
+    </group>
+
+    <item android:title="Genres">
+        <menu>
+            <item
+                android:id="@+id/nav_bestsellers"
+                android:icon="@drawable/ic_star"
+                android:title="@string/bestsellers" />
+
+            <item
+                android:id="@+id/nav_action"
+                android:icon="@drawable/ic_action"
+                android:title="Action" />
+
+            <item
+                android:id="@+id/nav_fantasy"
+                android:icon="@drawable/ic_fantasy"
+                android:title="Fantasy" />
+
+            <item
+                android:id="@+id/nav_romance"
+                android:icon="@drawable/ic_romance"
+                android:title="Romance" />
+
+            <item
+                android:id="@+id/nav_mystery"
+                android:icon="@drawable/ic_mystery"
+                android:title="Mystery" />
+
+            <item
+                android:id="@+id/nav_thriller"
+                android:icon="@drawable/ic_thriller"
+                android:title="Thriller" />
+
+            <item
+                android:id="@+id/nav_scifi"
+                android:icon="@drawable/ic_scifi"
+                android:title="Sci-Fi" />
+
+            <item
+                android:id="@+id/nav_classic"
+                android:icon="@drawable/ic_classic"
+                android:title="Classic" />
+        </menu>
+    </item>
+
+</menu>

@@ -1,0 +1,48 @@
+<div class="col-md-3 col-sm-4 col-xs-6 pt-cv-content-item pt-cv-1-col"><div class="pt-cv-ifield"><a href="https://goldenaudiobook.net/juliet-marillier-the-amber-owl-audiobook/" class="_self pt-cv-href-thumbnail pt-cv-thumb-default" target="_self"><img fetchpriority="high" decoding="async" width="300" height="300" src="https://goldenaudiobook.net/wp-content/uploads/2025/12/51bzC69H4L._SL500-300x300.jpg" class="pt-cv-thumbnail" alt=""></a>
+<div class="pt-cv-title"><a href="https://goldenaudiobook.net/juliet-marillier-the-amber-owl-audiobook/" class="_self" target="_self">Juliet Marillier – The Amber Owl Audiobook</a></div></div></div>
+
+
+
+    /**
+     * Fetch random audiobooks for home page
+     */
+    public void getRandomAudiobooks(Callback<List<Audiobook>> callback) {
+        executor.execute(() -> {
+            try {
+                List<Audiobook> audiobooks = new ArrayList<>();
+
+                // Try to fetch from main page first
+                Document doc = Jsoup.connect(BASE_URL)
+                        .timeout(TIMEOUT)
+                        .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
+                        .get();
+
+                // Parse archive posts from the page
+                Elements posts = doc.select("li.arpw-li.arpw-clearfix");
+
+                Log.i(TAG, "getRandomAudiobooks: "+posts.size());
+
+                for (Element post : posts) {
+                    Audiobook audiobook = parseAudiobookFromPost(post,"random");
+                    if (audiobook != null && audiobook.getTitle() != null) {
+                        audiobooks.add(audiobook);
+                    }
+                }
+
+                // If no posts found from archive, try alternate selectors
+                if (audiobooks.isEmpty()) {
+                    audiobooks = parseFromAlternateSelectors(doc);
+                }
+
+                List<Audiobook> finalAudiobooks = audiobooks;
+                mainHandler.post(() -> callback.onSuccess(finalAudiobooks));
+            } catch (IOException e) {
+                Log.e(TAG, "Error fetching random audiobooks", e);
+                mainHandler.post(() -> callback.onError(e));
+            }
+        });
+    }
+
+
+    private void parseRandomPost(Element post, Audiobook audiobook) {
+    }
