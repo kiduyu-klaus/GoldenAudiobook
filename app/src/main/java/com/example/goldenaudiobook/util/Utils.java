@@ -1,8 +1,6 @@
-package com.example.goldenaudiobook.utils;
+package com.example.goldenaudiobook.util;
 
 import android.content.Context;
-import android.view.View;
-import android.widget.TextView;
 
 import androidx.lifecycle.LifecycleOwner;
 

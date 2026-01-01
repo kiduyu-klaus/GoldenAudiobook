@@ -15,6 +15,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.MediaSession;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.bumptech.glide.Glide;
@@ -24,6 +25,7 @@ import com.example.goldenaudiobook.databinding.ActivityAudiobookDetailBinding;
 import com.example.goldenaudiobook.model.Audiobook;
 import com.example.goldenaudiobook.model.AudioTrack;
 import com.example.goldenaudiobook.viewmodel.AudiobookDetailViewModel;
+import com.example.goldenaudiobook.util.NotificationHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,8 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     private AudiobookDetailViewModel viewModel;
     private AudioTrackAdapter trackAdapter;
     private androidx.media3.exoplayer.ExoPlayer player;
+    private MediaSession mediaSession;
+    private NotificationHelper notificationHelper;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isUserSeeking = false;
 
@@ -129,11 +133,20 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     }
 
     private void initializePlayer() {
+        // Initialize notification helper
+        notificationHelper = new NotificationHelper(this);
+        notificationHelper.createNotificationChannel(this);
+
         player = new androidx.media3.exoplayer.ExoPlayer.Builder(this).build();
+
+        // Initialize MediaSession
+        mediaSession = new MediaSession.Builder(this, player).build();
+
         player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 updatePlayerUI();
+                updateNotification();
             }
 
             @Override
@@ -145,6 +158,7 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
                 } else {
                     stopProgressUpdate();
                 }
+                updateNotification();
             }
 
             @Override
@@ -159,10 +173,32 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
                 if (currentIndex != null) {
                     trackAdapter.setSelectedPosition(currentIndex);
                 }
+                updateNotification();
             }
         });
 
         binding.playerView.setPlayer(player);
+    }
+
+    private void updateNotification() {
+        if (notificationHelper != null && mediaSession != null) {
+            Audiobook audiobook = viewModel.getAudiobook().getValue();
+            String title = "Audiobook";
+            String artist = "Unknown Author";
+
+            if (audiobook != null) {
+                title = audiobook.getDisplayTitle();
+                artist = audiobook.getDisplayAuthor();
+            }
+
+            NotificationHelper.showNotification(
+                    AudiobookDetailActivity.this,
+                    player,
+                    mediaSession,
+                    title,
+                    artist,
+                    player.isPlaying());
+        }
     }
 
     private void observeViewModel() {
@@ -368,10 +404,22 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     protected void onDestroy() {
         super.onDestroy();
         stopProgressUpdate();
+
+        // Release MediaSession
+        if (mediaSession != null) {
+            mediaSession.release();
+            mediaSession = null;
+        }
+
         if (player != null) {
             player.release();
             player = null;
         }
+
+        if (notificationHelper != null) {
+            notificationHelper = null;
+        }
+
         binding = null;
     }
 }

@@ -1,6 +1,6 @@
 package com.example.goldenaudiobook.ui;
 
-import static com.example.goldenaudiobook.utils.Utils.getDialogPowerMenu;
+import static com.example.goldenaudiobook.util.Utils.getDialogPowerMenu;
 
 import android.os.Bundle;
 import android.util.Log;
@@ -19,12 +19,8 @@ import androidx.navigation.ui.NavigationUI;
 
 import com.example.goldenaudiobook.R;
 import com.example.goldenaudiobook.databinding.ActivityMainBinding;
-import com.example.goldenaudiobook.model.NavItem;
-import com.example.goldenaudiobook.utils.Utils;
 import com.google.android.material.navigation.NavigationView;
 import com.skydoves.powermenu.PowerMenu;
-
-import java.util.List;
 
 /**
  * Main Activity hosting the navigation graph and drawer
