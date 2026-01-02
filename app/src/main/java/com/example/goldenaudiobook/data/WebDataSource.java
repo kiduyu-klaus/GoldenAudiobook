@@ -250,7 +250,7 @@ public class WebDataSource {
             // Parse title from h2.title-post a
             Element titleElement = post.selectFirst("h2.title-post a");
             if (titleElement != null) {
-                String title = titleElement.text().trim();
+                String title = titleElement.text().trim().replace("Audiobook", "").trim();
                 String url = titleElement.attr("href");
                 audiobook.setTitle(title);
                 //imageurlhd=getImageUrlHd(url);
@@ -656,7 +656,7 @@ public class WebDataSource {
                     audiobook.setImageUrl(removeDimensions(imageUrl));
                 } else {
                     audiobook.setImageUrl(removeDimensions(imageUrl));
-                    Log.d(TAG, "Search result image: " + imageUrl);
+                    Log.d(TAG, "Search result image: " + removeDimensions(imageUrl));
                 }
             }
 

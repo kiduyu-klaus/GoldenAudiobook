@@ -113,7 +113,10 @@ public class CategoryAudiobooksFragment extends Fragment implements AudiobookAda
 
         viewModel.getCategoryName().observe(getViewLifecycleOwner(), name -> {
             if (name != null) {
-                binding.toolbar.setTitle(name);
+                binding.toolbar.setVisibility(View.GONE);
+                //binding.toolbar.setTitle(name);
+            } else {
+                binding.toolbar.setVisibility(View.GONE);
             }
         });
     }
