@@ -1,5 +1,6 @@
 package com.example.goldenaudiobook.util;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -14,9 +15,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
-import androidx.media3.session.MediaStyleNotificationHelper;
+import androidx.media3.ui.PlayerNotificationManager;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
@@ -26,24 +28,22 @@ import com.example.goldenaudiobook.model.Audiobook;
 import com.example.goldenaudiobook.ui.AudiobookDetailActivity;
 
 /**
- * Helper class for managing audio playback notification channels and notifications
+ * Helper class for managing audio playback notification using PlayerNotificationManager
  */
+@UnstableApi
 public class NotificationHelper {
 
     private static final String TAG = "NotificationHelper";
     private static final String CHANNEL_ID = "audiobook_playback_channel";
     private static final int NOTIFICATION_ID = 1001;
 
-    public static final String ACTION_PLAY = "com.example.goldenaudiobook.ACTION_PLAY";
-    public static final String ACTION_PAUSE = "com.example.goldenaudiobook.ACTION_PAUSE";
-    public static final String ACTION_NEXT = "com.example.goldenaudiobook.ACTION_NEXT";
-    public static final String ACTION_PREVIOUS = "com.example.goldenaudiobook.ACTION_PREVIOUS";
-    public static final String ACTION_STOP = "com.example.goldenaudiobook.ACTION_STOP";
-
-    Context context;
+    private final Context context;
+    private PlayerNotificationManager playerNotificationManager;
+    private Audiobook currentAudiobook;
+    private Bitmap currentCoverBitmap;
 
     public NotificationHelper(Context context) {
-        this.context = context;
+        this.context = context.getApplicationContext();
     }
 
     /**
@@ -60,11 +60,15 @@ public class NotificationHelper {
 
             channel.setDescription("Controls for audiobook playback");
             channel.setShowBadge(false);
-            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
 
             // Don't play sound or vibrate for notification updates
             channel.setSound(null, null);
             channel.enableVibration(false);
+            channel.canBypassDnd();
+            channel.setBypassDnd(true);
+
+            // Create the notification channel
 
             NotificationManager notificationManager = context.getSystemService(NotificationManager.class);
             if (notificationManager != null) {
@@ -74,295 +78,194 @@ public class NotificationHelper {
     }
 
     /**
-     * Builds and shows the playback notification with image
+     * Initializes and returns the PlayerNotificationManager
      */
-    public static android.app.Notification buildNotification(
-            Context context,
+    public PlayerNotificationManager getPlayerNotificationManager(
             ExoPlayer player,
-            MediaSession mediaSession,
-            Audiobook audiobook,
-            Bitmap coverBitmap) {
+            MediaSession mediaSession) {
 
-        // Create content intent (tap to open app)
-        Intent contentIntent = new Intent(context, AudiobookDetailActivity.class);
-        PendingIntent contentPendingIntent = PendingIntent.getActivity(
-                context,
-                0,
-                contentIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
+        if (playerNotificationManager == null) {
+            // Create media descriptor adapter
+            PlayerNotificationManager.MediaDescriptionAdapter descriptionAdapter =
+                    new PlayerNotificationManager.MediaDescriptionAdapter() {
+                        @Override
+                        public CharSequence getCurrentContentTitle(Player player) {
+                            return currentAudiobook != null ?
+                                    currentAudiobook.getDisplayTitle() : "Audiobook";
+                        }
 
-        // Build notification using MediaStyle
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(audiobook != null ? audiobook.getDisplayTitle() : "Audiobook")
-                .setContentText(audiobook != null ? audiobook.getDisplayAuthor() : "Playing")
-                .setSubText("Now Playing")
-                .setContentIntent(contentPendingIntent)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setOngoing(player.isPlaying())
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-                .setStyle(new MediaStyleNotificationHelper.MediaStyle(mediaSession)
-                        .setShowActionsInCompactView(0, 1, 2));
+                        @Override
+                        public CharSequence getCurrentContentText(Player player) {
+                            return currentAudiobook != null ?
+                                    currentAudiobook.getDisplayAuthor() : "Playing";
+                        }
 
-        // Set large icon (cover image) if available
-        if (coverBitmap != null) {
-            builder.setLargeIcon(coverBitmap);
+                        @Nullable
+                        @Override
+                        public Bitmap getCurrentLargeIcon(Player player,
+                                                          PlayerNotificationManager.BitmapCallback callback) {
+                            // Load image asynchronously if needed
+                            if (currentCoverBitmap != null) {
+                                return currentCoverBitmap;
+                            }
+
+                            if (currentAudiobook != null &&
+                                    currentAudiobook.getImageUrl() != null &&
+                                    !currentAudiobook.getImageUrl().isEmpty()) {
+                                loadCoverImageAsync(currentAudiobook.getImageUrl(), callback);
+                            }
+
+                            return null;
+                        }
+
+                        @Nullable
+                        @Override
+                        public PendingIntent createCurrentContentIntent(Player player) {
+                            Intent intent = new Intent(context, AudiobookDetailActivity.class);
+                            return PendingIntent.getActivity(
+                                    context,
+                                    0,
+                                    intent,
+                                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                            );
+                        }
+                    };
+
+            // Build PlayerNotificationManager
+            playerNotificationManager = new PlayerNotificationManager.Builder(
+                    context,
+                    NOTIFICATION_ID,
+                    CHANNEL_ID
+            )
+                    .setMediaDescriptionAdapter(descriptionAdapter)
+                    .setSmallIconResourceId(R.drawable.ic_notification)
+                    .setChannelNameResourceId(R.string.notification_channel_name)
+                    .setChannelDescriptionResourceId(R.string.notification_channel_description)
+                    .setNotificationListener(new PlayerNotificationManager.NotificationListener() {
+                        @Override
+                        public void onNotificationCancelled(int notificationId, boolean dismissedByUser) {
+                            Log.d(TAG, "Notification cancelled, dismissedByUser: " + dismissedByUser);
+                            // Stop the service or handle cleanup if needed
+                        }
+
+                        @Override
+                        public void onNotificationPosted(int notificationId,
+                                                         Notification notification, boolean ongoing) {
+                            Log.d(TAG, "Notification posted, ongoing: " + ongoing);
+                            // Handle notification posted if needed
+                        }
+                    })
+                    .build();
+
+            // Configure notification settings
+            playerNotificationManager.setMediaSessionToken(mediaSession.getSessionCompatToken());
+            playerNotificationManager.setUsePreviousAction(true);
+            playerNotificationManager.setUseNextAction(true);
+            playerNotificationManager.setUsePlayPauseActions(true);
+            playerNotificationManager.setPriority(NotificationCompat.PRIORITY_LOW);
+            playerNotificationManager.setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+
+            // Set the player
+            playerNotificationManager.setPlayer(player);
+
+            Log.d(TAG, "PlayerNotificationManager initialized");
         }
 
-        // Add play/pause action
-        if (player.isPlaying()) {
-            builder.addAction(
-                    R.drawable.ic_pause,
-                    "Pause",
-                    createActionPendingIntent(context, ACTION_PAUSE, player)
-            );
-        } else {
-            builder.addAction(
-                    R.drawable.ic_play,
-                    "Play",
-                    createActionPendingIntent(context, ACTION_PLAY, player)
-            );
-        }
-
-        // Add previous track action
-        builder.addAction(
-                R.drawable.ic_previous,
-                "Previous",
-                createActionPendingIntent(context, ACTION_PREVIOUS, player)
-        );
-
-        // Add next track action
-        builder.addAction(
-                R.drawable.ic_next,
-                "Next",
-                createActionPendingIntent(context, ACTION_NEXT, player)
-        );
-
-        return builder.build();
+        return playerNotificationManager;
     }
 
+    /**
+     * Updates the audiobook information for the notification
+     */
+    public void updateAudiobook(Audiobook audiobook) {
+        this.currentAudiobook = audiobook;
+        this.currentCoverBitmap = null; // Clear cached bitmap
 
+        // Invalidate the notification to refresh with new info
+        if (playerNotificationManager != null) {
+            playerNotificationManager.invalidate();
+        }
+    }
 
     /**
-     * Shows a notification for media playback with simplified parameters
+     * Updates the cover bitmap for the notification
      */
-    public static void showNotification(
-            Context context,
-            ExoPlayer player,
-            MediaSession mediaSession,
-            String title,
-            String artist,
-            boolean isPlaying) {
+    public void updateCoverBitmap(Bitmap bitmap) {
+        this.currentCoverBitmap = bitmap;
 
-        if (context == null) return;
+        // Invalidate the notification to refresh with new image
+        if (playerNotificationManager != null) {
+            playerNotificationManager.invalidate();
+        }
+    }
 
-        // Create a simple Audiobook-like object for the notification
+    /**
+     * Loads cover image asynchronously using Glide
+     */
+    private void loadCoverImageAsync(String imageUrl,
+                                     PlayerNotificationManager.BitmapCallback callback) {
+        Glide.with(context)
+                .asBitmap()
+                .load(imageUrl)
+                .into(new CustomTarget<Bitmap>() {
+                    @Override
+                    public void onResourceReady(@NonNull Bitmap bitmap,
+                                                @Nullable Transition<? super Bitmap> transition) {
+                        currentCoverBitmap = bitmap;
+                        callback.onBitmap(bitmap);
+                    }
+
+                    @Override
+                    public void onLoadCleared(@Nullable Drawable placeholder) {
+                        // Handle cleanup if needed
+                    }
+
+                    @Override
+                    public void onLoadFailed(@Nullable Drawable errorDrawable) {
+                        Log.e(TAG, "Failed to load cover image: " + imageUrl);
+                    }
+                });
+    }
+
+    /**
+     * Shows the notification
+     */
+    public void showNotification(ExoPlayer player, MediaSession mediaSession,
+                                 Audiobook audiobook) {
+        updateAudiobook(audiobook);
+        getPlayerNotificationManager(player, mediaSession);
+    }
+
+    /**
+     * Shows notification with simplified parameters
+     */
+    public void showNotification(ExoPlayer player, MediaSession mediaSession,
+                                 String title, String artist) {
         Audiobook tempAudiobook = new Audiobook();
         tempAudiobook.setTitle(title);
         tempAudiobook.setAuthor(artist);
-
-        NotificationManager notificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-
-        if (notificationManager != null) {
-            android.app.Notification notification = buildNotification(
-                    context, player, mediaSession, tempAudiobook, null);
-            notificationManager.notify(NOTIFICATION_ID, notification);
-        }
+        showNotification(player, mediaSession, tempAudiobook);
     }
-
-    /**
-     * Shows a notification for media playback with audiobook image
-     */
-    public static void showNotification(
-            Context context,
-            ExoPlayer player,
-            MediaSession mediaSession,
-            Audiobook audiobook,
-            boolean isPlaying) {
-
-        if (context == null) return;
-
-        NotificationManager notificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-
-        if (notificationManager != null) {
-            android.app.Notification notification = buildNotificationWithImage(
-                    context, player, mediaSession, audiobook);
-            notificationManager.notify(NOTIFICATION_ID, notification);
-        }
-    }
-
-    /**
-     * Builds notification with audiobook cover image
-     */
-    private static android.app.Notification buildNotificationWithImage(
-            Context context,
-            ExoPlayer player,
-            MediaSession mediaSession,
-            Audiobook audiobook) {
-
-        // Create content intent (tap to open app)
-        Intent contentIntent = new Intent(context, AudiobookDetailActivity.class);
-        PendingIntent contentPendingIntent = PendingIntent.getActivity(
-                context,
-                0,
-                contentIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        // Build notification using MediaStyle
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(audiobook != null ? audiobook.getDisplayTitle() : "Audiobook")
-                .setContentText(audiobook != null ? audiobook.getDisplayAuthor() : "Playing")
-                .setSubText("Now Playing")
-                .setContentIntent(contentPendingIntent)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setOngoing(player.isPlaying())
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT);
-
-        // Add previous track action (index 0)
-        builder.addAction(
-                R.drawable.ic_previous,
-                "Previous",
-                createActionPendingIntent(context, ACTION_PREVIOUS, player)
-        );
-
-        // Add play/pause action (index 1)
-        if (player.isPlaying()) {
-            builder.addAction(
-                    R.drawable.ic_pause,
-                    "Pause",
-                    createActionPendingIntent(context, ACTION_PAUSE, player)
-            );
-        } else {
-            builder.addAction(
-                    R.drawable.ic_play,
-                    "Play",
-                    createActionPendingIntent(context, ACTION_PLAY, player)
-            );
-        }
-
-        // Add next track action (index 2)
-        builder.addAction(
-                R.drawable.ic_next,
-                "Next",
-                createActionPendingIntent(context, ACTION_NEXT, player)
-        );
-
-        // Apply MediaStyle AFTER adding all actions
-        builder.setStyle(new MediaStyleNotificationHelper.MediaStyle(mediaSession)
-                .setShowActionsInCompactView(0, 1, 2)); // Show all three buttons
-
-        // Load and set the audiobook cover image asynchronously
-        if (audiobook != null && audiobook.getImageUrl() != null && !audiobook.getImageUrl().isEmpty()) {
-            try {
-                // Use Glide to load the image in the background and set it as large icon
-                new Thread(() -> {
-                    try {
-                        android.graphics.Bitmap bitmap = com.bumptech.glide.Glide.with(context)
-                                .asBitmap()
-                                .load(audiobook.getImageUrl())
-                                .submit()
-                                .get();
-
-                        builder.setLargeIcon(bitmap);
-
-                        // Update notification with image
-                        NotificationManager notificationManager =
-                                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-                        if (notificationManager != null) {
-                            notificationManager.notify(NOTIFICATION_ID, builder.build());
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }).start();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        return builder.build();
-    }
-
-
-
 
     /**
      * Dismisses the playback notification
      */
-    public static void dismissNotification(Context context) {
-        NotificationManager notificationManager =
-                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-
-        if (notificationManager != null) {
-            notificationManager.cancel(NOTIFICATION_ID);
+    public void dismissNotification() {
+        if (playerNotificationManager != null) {
+            playerNotificationManager.setPlayer(null);
         }
     }
 
     /**
-     * Creates a PendingIntent for notification action buttons
+     * Releases resources
      */
-    private static PendingIntent createActionPendingIntent(
-            Context context,
-            String action,
-            ExoPlayer player) {
-
-        Intent intent = new Intent(context, AudiobookDetailActivity.class);
-        intent.setAction(action);
-
-        return PendingIntent.getActivity(
-                context,
-                action.hashCode(),
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-    }
-
-    /**
-     * Processes notification action intents
-     */
-    public static boolean handleActionIntent(Context context, String action, ExoPlayer player) {
-        if (player == null) return false;
-
-        switch (action) {
-            case ACTION_PLAY:
-                player.play();
-                return true;
-
-            case ACTION_PAUSE:
-                player.pause();
-                return true;
-
-            case ACTION_NEXT:
-                // Navigate to next track
-                if (player.hasNextMediaItem()) {
-                    player.seekToNextMediaItem();
-                }
-                return true;
-
-            case ACTION_PREVIOUS:
-                // Navigate to previous track or rewind
-                if (player.hasPreviousMediaItem()) {
-                    player.seekToPreviousMediaItem();
-                } else {
-                    player.seekTo(0);
-                }
-                return true;
-
-            case ACTION_STOP:
-                player.stop();
-                player.clearMediaItems();
-                return true;
-
-            default:
-                return false;
+    public void release() {
+        if (playerNotificationManager != null) {
+            playerNotificationManager.setPlayer(null);
+            playerNotificationManager = null;
         }
+        currentAudiobook = null;
+        currentCoverBitmap = null;
     }
 
     /**

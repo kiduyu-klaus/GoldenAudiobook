@@ -139,8 +139,22 @@ public class AudiobookRepository {
      * Search audiobooks by query
      */
     public void searchAudiobooks(String query, DataCallback<List<Audiobook>> callback) {
-        String searchUrl = "https://goldenaudiobook.net/?s=" + query.replace(" ", "+");
-        getAudiobooksByCategory(searchUrl, callback);
+        webDataSource.getSearchResultsAudiobooks(query, new WebDataSource.Callback<List<Audiobook>>() {
+            @Override
+            public void onSuccess(List<Audiobook> result) {
+                if (result != null) {
+                    callback.onSuccess(result);
+                } else {
+                    callback.onSuccess(new ArrayList<>());
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error searching audiobooks", e);
+                callback.onError(e);
+            }
+        });
     }
 
     /**

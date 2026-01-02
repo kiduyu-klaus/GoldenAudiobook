@@ -5,6 +5,7 @@ import static com.example.goldenaudiobook.util.Utils.getDialogPowerMenu;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.Window;
@@ -94,6 +95,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.search_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_search) {
+            navController.navigate(R.id.searchFragment);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     private void setupNavigation() {
         // Setup NavHostFragment
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager()
@@ -104,7 +120,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
             // Setup AppBarConfiguration with top-level destinations
             appBarConfiguration = new AppBarConfiguration.Builder(
-                    R.id.homeFragment
+                    R.id.homeFragment,
+                    R.id.searchFragment
             ).setOpenableLayout(binding.drawerLayout).build();
 
             // Setup toolbar with nav controller
@@ -124,6 +141,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         if (itemId == R.id.nav_home) {
             navController.navigate(R.id.homeFragment);
+        } else if (itemId == R.id.nav_search) {
+            navController.navigate(R.id.searchFragment);
         } else if (itemId == R.id.nav_categories) {
             navController.navigate(R.id.categoriesFragment);
         } else if (itemId == R.id.nav_bestsellers) {

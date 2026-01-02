@@ -25,4 +25,8 @@
     <string name="homepage">Home</string>
     <string name="bestsellers">Bestsellers</string>
     <string name="popup_esito_image_description">Esito</string>
+    <string name="notification_channel_name">Audiobook Playback</string>
+    <string name="notification_channel_description">Controls for audiobook playback</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>

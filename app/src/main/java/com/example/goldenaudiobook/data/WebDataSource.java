@@ -144,6 +144,9 @@ public class WebDataSource {
                 case "random":
                     parseRandomPost(post, audiobook);
                     break;
+                case "search":
+                    parseSearchPost(post, audiobook);
+                    break;
                 default:
                     // Default parsing logic
                     parseCategoryPost(post, audiobook);
@@ -552,6 +555,129 @@ public class WebDataSource {
 
             mainHandler.post(() -> callback.onSuccess(navItems));
         });
+    }
+
+    /**
+     * Search for audiobooks by query
+     * URL format: https://goldenaudiobook.net/?s=search+term
+     */
+    public void getSearchResultsAudiobooks(String searchQuery, Callback<List<Audiobook>> callback) {
+        executor.execute(() -> {
+            try {
+                List<Audiobook> audiobooks = new ArrayList<>();
+
+                // Construct search URL - replace spaces with +
+                String encodedQuery = searchQuery.replace(" ", "+");
+                String searchUrl = BASE_URL + "?s=" + encodedQuery;
+
+                Log.d(TAG, "Searching for: " + searchQuery + " at URL: " + searchUrl);
+
+                Document doc = Jsoup.connect(searchUrl)
+                        .timeout(TIMEOUT)
+                        .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
+                        .get();
+
+                // Parse posts from search results - use the structure from search results
+                Elements posts = doc.select("li.ilovewp-post");
+                if (posts.isEmpty()) {
+                    posts = doc.select("article[id^=post-]");
+                }
+                if (posts.isEmpty()) {
+                    posts = doc.select("article.post");
+                }
+                if (posts.isEmpty()) {
+                    posts = doc.select(".search-result, .result-item");
+                }
+
+                Log.d(TAG, "Search found " + posts.size() + " posts for query: " + searchQuery);
+
+                for (Element post : posts) {
+                    Audiobook audiobook = parseAudiobookFromPost(post, "search");
+                    if (audiobook != null && audiobook.getTitle() != null && !audiobook.getTitle().isEmpty()) {
+                        audiobooks.add(audiobook);
+                    }
+                }
+
+                // If no results found, try alternate selectors
+                if (audiobooks.isEmpty()) {
+                    Log.d(TAG, "No results found with primary selector, trying alternatives");
+                    audiobooks = parseFromAlternateSelectors(doc);
+                }
+
+                List<Audiobook> finalAudiobooks = audiobooks;
+                mainHandler.post(() -> callback.onSuccess(finalAudiobooks));
+            } catch (IOException e) {
+                Log.e(TAG, "Error searching for audiobooks: " + searchQuery, e);
+                mainHandler.post(() -> callback.onError(e));
+            }
+        });
+    }
+
+    /**
+     * Parse audiobook from search results
+     * Based on the search results HTML structure
+     */
+    private void parseSearchPost(Element post, Audiobook audiobook) {
+        try {
+            // Parse title from h2.title-post a (same as category structure)
+            Element titleElement = post.selectFirst("h2.title-post a");
+            if (titleElement == null) {
+                // Try alternate selectors for search results
+                titleElement = post.selectFirst(".entry-title a, .post-title a, h2 a");
+            }
+
+            if (titleElement != null) {
+                String title = titleElement.text().trim();
+                String url = titleElement.attr("href");
+                audiobook.setTitle(title);
+                audiobook.setUrl(url);
+                Log.d(TAG, "Search result title: " + title);
+            }
+
+            // Parse image from .post-cover img or img attachment
+            Element imgElement = post.selectFirst("img");
+            if (imgElement != null) {
+                String imageUrl = imgElement.attr("data-src");
+                if (imageUrl.isEmpty()) {
+                    imageUrl = imgElement.attr("src");
+                }
+                audiobook.setImageUrl(imageUrl);
+                Log.d(TAG, "Search result image: " + imageUrl);
+            }
+
+            // Parse categories from .post-meta-category a
+            Elements categoryElements = post.select(".post-meta-category a[rel=category tag]");
+            if (!categoryElements.isEmpty()) {
+                for (Element cat : categoryElements) {
+                    audiobook.addCategory(cat.text());
+                }
+            } else {
+                audiobook.addCategory("Search Result");
+            }
+
+            // Parse date from time.entry-date
+            Element dateElement = post.selectFirst("time.entry-date");
+            if (dateElement == null) {
+                dateElement = post.selectFirst(".posted-on time, .entry-date");
+            }
+
+            if (dateElement != null) {
+                String date = dateElement.text().trim();
+                audiobook.setPublishedDate(date);
+            }
+
+            // Parse author from title if present (format: "Author – Book Title")
+            if (audiobook.getTitle() != null && audiobook.getTitle().contains("–")) {
+                String[] parts = audiobook.getTitle().split("–");
+                if (parts.length > 1) {
+                    audiobook.setAuthor(parts[0].trim());
+                }
+            }
+
+            Log.d(TAG, "Parsed search result: " + audiobook.getTitle());
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing search result post", e);
+        }
     }
 
     /**

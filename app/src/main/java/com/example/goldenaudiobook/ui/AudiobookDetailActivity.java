@@ -1,5 +1,6 @@
 package com.example.goldenaudiobook.ui;
 
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,6 +35,7 @@ import java.util.List;
 /**
  * Activity displaying audiobook details with audio playback
  */
+@UnstableApi
 public class AudiobookDetailActivity extends AppCompatActivity implements AudioTrackAdapter.OnTrackClickListener {
 
     private ActivityAudiobookDetailBinding binding;
@@ -124,7 +126,6 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
             public void onStopTrackingTouch(SeekBar seekBar) {
                 if (player != null) {
                     player.seekTo(seekBar.getProgress());
-
                 }
                 isUserSeeking = false;
             }
@@ -139,22 +140,25 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     }
 
     private void initializePlayer() {
+        // Create notification channel (do this once)
+        NotificationHelper.createNotificationChannel(this);
+
         // Initialize notification helper
         notificationHelper = new NotificationHelper(this);
-        notificationHelper.createNotificationChannel(this);
 
+        // Initialize ExoPlayer
         player = new androidx.media3.exoplayer.ExoPlayer.Builder(this).build();
 
-        // Initialize MediaSession with a unique ID based on activity instance
+        // Initialize MediaSession
         mediaSession = new MediaSession.Builder(this, player)
-                .setId("audiobook_playback_" + System.currentTimeMillis()) // Use timestamp for uniqueness
+                .setId("audiobook_playback_" + System.currentTimeMillis())
                 .build();
 
+        // Add player listeners
         player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 updatePlayerUI();
-                updateNotification();
             }
 
             @Override
@@ -166,7 +170,6 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
                 } else {
                     stopProgressUpdate();
                 }
-                updateNotification();
             }
 
             @Override
@@ -181,36 +184,13 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
                 if (currentIndex != null) {
                     trackAdapter.setSelectedPosition(currentIndex);
                 }
-                updateNotification();
             }
         });
 
         binding.playerView.setPlayer(player);
-    }
 
-    private void updateNotification() {
-        if (notificationHelper != null && mediaSession != null) {
-            Audiobook audiobook = viewModel.getAudiobook().getValue();
-
-            if (audiobook != null) {
-                // Use the overloaded method with full audiobook object
-                NotificationHelper.showNotification(
-                        AudiobookDetailActivity.this,
-                        player,
-                        mediaSession,
-                        audiobook,
-                        player.isPlaying());
-            } else {
-                // Fallback to simple version
-                NotificationHelper.showNotification(
-                        AudiobookDetailActivity.this,
-                        player,
-                        mediaSession,
-                        "Audiobook",
-                        "Unknown Author",
-                        player.isPlaying());
-            }
-        }
+        // Initialize the PlayerNotificationManager
+        notificationHelper.getPlayerNotificationManager(player, mediaSession);
     }
 
     private void observeViewModel() {
@@ -218,6 +198,8 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
             if (audiobook != null) {
                 displayAudiobookInfo(audiobook);
                 setupTracks(audiobook);
+                // Update notification with audiobook info
+                notificationHelper.updateAudiobook(audiobook);
             }
         });
 
@@ -247,7 +229,9 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     private void displayAudiobookInfo(Audiobook audiobook) {
         // Set title
         String title = audiobook.getDisplayTitle();
-        getSupportActionBar().setTitle(title);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(title);
+        }
         binding.bookTitle.setText(title);
 
         // Set author
@@ -384,6 +368,8 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     }
 
     private String formatTime(long millis) {
+        if (millis < 0) return "00:00";
+
         long seconds = millis / 1000;
         long minutes = seconds / 60;
         seconds = seconds % 60;
@@ -415,9 +401,26 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        //stopProgressUpdate();
+        stopProgressUpdate();
 
+        // Release notification helper
+        if (notificationHelper != null) {
+            notificationHelper.release();
+            notificationHelper = null;
+        }
 
-        //binding = null;
+        // Release media session
+        if (mediaSession != null) {
+            mediaSession.release();
+            mediaSession = null;
+        }
+
+        // Release player
+        if (player != null) {
+            player.release();
+            player = null;
+        }
+
+        binding = null;
     }
 }

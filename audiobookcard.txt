@@ -1,48 +1,92 @@
-<div class="col-md-3 col-sm-4 col-xs-6 pt-cv-content-item pt-cv-1-col"><div class="pt-cv-ifield"><a href="https://goldenaudiobook.net/juliet-marillier-the-amber-owl-audiobook/" class="_self pt-cv-href-thumbnail pt-cv-thumb-default" target="_self"><img fetchpriority="high" decoding="async" width="300" height="300" src="https://goldenaudiobook.net/wp-content/uploads/2025/12/51bzC69H4L._SL500-300x300.jpg" class="pt-cv-thumbnail" alt=""></a>
-<div class="pt-cv-title"><a href="https://goldenaudiobook.net/juliet-marillier-the-amber-owl-audiobook/" class="_self" target="_self">Juliet Marillier – The Amber Owl Audiobook</a></div></div></div>
+    private void setupSearchInput() {
+        // Text change listener for search
+        binding.searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
-
-
-    /**
-     * Fetch random audiobooks for home page
-     */
-    public void getRandomAudiobooks(Callback<List<Audiobook>> callback) {
-        executor.execute(() -> {
-            try {
-                List<Audiobook> audiobooks = new ArrayList<>();
-
-                // Try to fetch from main page first
-                Document doc = Jsoup.connect(BASE_URL)
-                        .timeout(TIMEOUT)
-                        .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
-                        .get();
-
-                // Parse archive posts from the page
-                Elements posts = doc.select("li.arpw-li.arpw-clearfix");
-
-                Log.i(TAG, "getRandomAudiobooks: "+posts.size());
-
-                for (Element post : posts) {
-                    Audiobook audiobook = parseAudiobookFromPost(post,"random");
-                    if (audiobook != null && audiobook.getTitle() != null) {
-                        audiobooks.add(audiobook);
-                    }
-                }
-
-                // If no posts found from archive, try alternate selectors
-                if (audiobooks.isEmpty()) {
-                    audiobooks = parseFromAlternateSelectors(doc);
-                }
-
-                List<Audiobook> finalAudiobooks = audiobooks;
-                mainHandler.post(() -> callback.onSuccess(finalAudiobooks));
-            } catch (IOException e) {
-                Log.e(TAG, "Error fetching random audiobooks", e);
-                mainHandler.post(() -> callback.onError(e));
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Show/hide clear button
+                binding.clearButton.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
             }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        // Search on keyboard action
+        binding.searchEditText.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performSearch();
+                return true;
+            }
+            return false;
+        });
+
+        // Clear button click
+        binding.clearButton.setOnClickListener(v -> {
+            binding.searchEditText.setText("");
+            viewModel.clearResults();
+            showEmptyState();
         });
     }
 
 
-    private void parseRandomPost(Element post, Audiobook audiobook) {
-    }
+
+    <!-- Search Bar -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/searchCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_search"
+                android:layout_marginStart="8dp"
+                android:tint="@color/primary"
+                android:contentDescription="Search Icon" />
+
+            <EditText
+                android:id="@+id/searchEditText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@null"
+                android:hint="Search audiobooks..."
+                android:inputType="text"
+                android:maxLines="1"
+                android:textSize="16sp"
+                android:importantForAutofill="no" />
+
+            <ImageButton
+                android:id="@+id/clearButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_close"
+                android:tint="@color/primary"
+                android:visibility="gone"
+                android:contentDescription="Clear Search"
+                tools:visibility="visible" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Loading Indicator -->
+
+
+    set enter key to search
