@@ -223,9 +223,40 @@ public class NotificationHelper {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(player.isPlaying())
                 .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-                .setStyle(new MediaStyleNotificationHelper.MediaStyle(mediaSession)
-                        .setShowActionsInCompactView(0, 1, 2));
+                .setCategory(NotificationCompat.CATEGORY_TRANSPORT);
+
+        // Add previous track action (index 0)
+        builder.addAction(
+                R.drawable.ic_previous,
+                "Previous",
+                createActionPendingIntent(context, ACTION_PREVIOUS, player)
+        );
+
+        // Add play/pause action (index 1)
+        if (player.isPlaying()) {
+            builder.addAction(
+                    R.drawable.ic_pause,
+                    "Pause",
+                    createActionPendingIntent(context, ACTION_PAUSE, player)
+            );
+        } else {
+            builder.addAction(
+                    R.drawable.ic_play,
+                    "Play",
+                    createActionPendingIntent(context, ACTION_PLAY, player)
+            );
+        }
+
+        // Add next track action (index 2)
+        builder.addAction(
+                R.drawable.ic_next,
+                "Next",
+                createActionPendingIntent(context, ACTION_NEXT, player)
+        );
+
+        // Apply MediaStyle AFTER adding all actions
+        builder.setStyle(new MediaStyleNotificationHelper.MediaStyle(mediaSession)
+                .setShowActionsInCompactView(0, 1, 2)); // Show all three buttons
 
         // Load and set the audiobook cover image asynchronously
         if (audiobook != null && audiobook.getImageUrl() != null && !audiobook.getImageUrl().isEmpty()) {
@@ -255,35 +286,6 @@ public class NotificationHelper {
                 e.printStackTrace();
             }
         }
-
-        // Add play/pause action
-        if (player.isPlaying()) {
-            builder.addAction(
-                    R.drawable.ic_pause,
-                    "Pause",
-                    createActionPendingIntent(context, ACTION_PAUSE, player)
-            );
-        } else {
-            builder.addAction(
-                    R.drawable.ic_play,
-                    "Play",
-                    createActionPendingIntent(context, ACTION_PLAY, player)
-            );
-        }
-
-        // Add previous track action
-        builder.addAction(
-                R.drawable.ic_previous,
-                "Previous",
-                createActionPendingIntent(context, ACTION_PREVIOUS, player)
-        );
-
-        // Add next track action
-        builder.addAction(
-                R.drawable.ic_next,
-                "Next",
-                createActionPendingIntent(context, ACTION_NEXT, player)
-        );
 
         return builder.build();
     }
