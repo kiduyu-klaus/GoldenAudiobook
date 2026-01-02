@@ -122,11 +122,40 @@ public class NotificationHelper {
                         @Override
                         public PendingIntent createCurrentContentIntent(Player player) {
                             Intent intent = new Intent(context, AudiobookDetailActivity.class);
+                            
+                            // Add NEW_TASK flag to allow launching from notification
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            
+                            // Pass the audiobook URL and title to open the correct audiobook
+                            if (currentAudiobook != null) {
+                                if (currentAudiobook.getUrl() != null && !currentAudiobook.getUrl().isEmpty()) {
+                                    intent.putExtra("audiobook_url", currentAudiobook.getUrl());
+                                }
+                                if (currentAudiobook.getTitle() != null && !currentAudiobook.getTitle().isEmpty()) {
+                                    intent.putExtra("audiobook_title", currentAudiobook.getTitle());
+                                }
+                            }
+                            
+                            // Use FLAG_UPDATE_CURRENT to update intent with latest audiobook info
+                            // Use FLAG_IMMUTABLE for Android 12+ compatibility
+                            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                flags |= PendingIntent.FLAG_IMMUTABLE;
+                            }
+                            
+                            // Use a unique request code based on audiobook URL to ensure
+                            // each audiobook has its own PendingIntent
+                            int requestCode = NOTIFICATION_ID;
+                            if (currentAudiobook != null && currentAudiobook.getUrl() != null) {
+                                requestCode = currentAudiobook.getUrl().hashCode();
+                            }
+                            
                             return PendingIntent.getActivity(
                                     context,
-                                    0,
+                                    requestCode,
                                     intent,
-                                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                                    flags
                             );
                         }
                     };
@@ -181,7 +210,7 @@ public class NotificationHelper {
         this.currentAudiobook = audiobook;
         this.currentCoverBitmap = null; // Clear cached bitmap
 
-        // Invalidate the notification to refresh with new info
+        // Invalidate the notification to refresh with new info and update PendingIntent
         if (playerNotificationManager != null) {
             playerNotificationManager.invalidate();
         }
@@ -280,5 +309,12 @@ public class NotificationHelper {
      */
     public static int getNotificationId() {
         return NOTIFICATION_ID;
+    }
+
+    /**
+     * Gets the current audiobook being played
+     */
+    public Audiobook getCurrentAudiobook() {
+        return currentAudiobook;
     }
 }

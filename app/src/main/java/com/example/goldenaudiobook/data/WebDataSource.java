@@ -73,10 +73,11 @@ public class WebDataSource {
                     Log.i(TAG, "getRandomAudiobooksPage: next "+newurl);
                     currentPage++; //
                 }else{
-                    if(currentPage>1) { //
+                    if(currentPage>1){
                         currentPage--;
                     }
                 }
+
                 Document doc = Jsoup.connect(newurl)
                         .timeout(TIMEOUT)
                         .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
@@ -147,18 +148,18 @@ public class WebDataSource {
                 } else {
                     // Try next page link
 
-                        String nextPageUrl1 = BASE_URL+"?_page="+(currentPage+1);
-                        if(!nextPageUrl1.isEmpty()&&nextPageUrl1 != null){
-                            Log.i(TAG, "next: "+nextPageUrl);
-                            this.nextPageUrl = nextPageUrl1;
+                    String nextPageUrl1 = BASE_URL+"?_page="+(currentPage+1);
+                    if(!nextPageUrl1.isEmpty()&&nextPageUrl1 != null){
+                        Log.i(TAG, "next: "+nextPageUrl);
+                        this.nextPageUrl = nextPageUrl1;
 
-                            nextPageUrl = nextPageUrl1;
-                        }
-                        else{
-                            this.nextPageUrl = nextPageUrl1;
-                            nextPageUrl = nextPageUrl1;
-                        }
-                        //this.
+                        nextPageUrl = nextPageUrl1;
+                    }
+                    else{
+                        this.nextPageUrl = nextPageUrl1;
+                        nextPageUrl = nextPageUrl1;
+                    }
+                    //this.
 
 
                 }
@@ -319,11 +320,10 @@ public class WebDataSource {
             Elements pageLinks = doc.select("a[href*='/page/']");
             for (Element link : pageLinks) {
                 String href = link.attr("href");
-                if (href.contains("/page/")){
+                if (href.contains("/page/") ) {
                     // Extract page number
-                    Pattern pattern = Pattern.compile("/page/(\\d+)/");
-
-                    Matcher matcher = pattern.matcher(href);
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("/page/(\\d+)/");
+                    java.util.regex.Matcher matcher = pattern.matcher(href);
                     if (matcher.find()) {
                         int pageNum = Integer.parseInt(matcher.group(1));
                         // Return the first page link found (assuming ascending order)

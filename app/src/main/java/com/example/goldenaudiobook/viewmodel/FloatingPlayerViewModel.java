@@ -1,0 +1,300 @@
+package com.example.goldenaudiobook.viewmodel;
+
+import android.app.Application;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.net.Uri;
+
+import androidx.annotation.NonNull;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.ViewModel;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+
+import com.example.goldenaudiobook.model.Audiobook;
+import com.example.goldenaudiobook.model.AudioTrack;
+import com.example.goldenaudiobook.service.AudioPlaybackService;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+/**
+ * ViewModel for Floating Player - shared across all fragments
+ * Manages playback state and persists data for app restarts
+ */
+@UnstableApi public class FloatingPlayerViewModel extends AndroidViewModel {
+
+    private static final String PREFS_NAME = "floating_player_prefs";
+    private static final String KEY_CURRENT_AUDIOBOOK_URL = "current_audiobook_url";
+    private static final String KEY_CURRENT_AUDIOBOOK_TITLE = "current_audiobook_title";
+    private static final String KEY_CURRENT_AUDIOBOOK_AUTHOR = "current_audiobook_author";
+    private static final String KEY_CURRENT_AUDIOBOOK_IMAGE = "current_audiobook_image";
+    private static final String KEY_CURRENT_TRACK_INDEX = "current_track_index";
+    private static final String KEY_PLAYBACK_POSITION = "playback_position";
+    private static final String KEY_IS_PLAYING = "is_playing";
+    private static final String KEY_AUDIO_URLS = "audio_urls";
+    private static final String KEY_TRACK_NAMES = "track_names";
+
+    private final SharedPreferences prefs;
+    private final MutableLiveData<Boolean> isPlayerVisible = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> isExpanded = new MutableLiveData<>(false);
+    private final MutableLiveData<Audiobook> currentAudiobook = new MutableLiveData<>();
+    private final MutableLiveData<Integer> currentTrackIndex = new MutableLiveData<>(0);
+    private final MutableLiveData<Boolean> isPlaying = new MutableLiveData<>(false);
+    private final MutableLiveData<Long> currentPosition = new MutableLiveData<>(0L);
+    private final MutableLiveData<Long> duration = new MutableLiveData<>(0L);
+    private final MutableLiveData<List<AudioTrack>> trackList = new MutableLiveData<>(new ArrayList<>());
+
+    private AudioPlaybackService playbackService;
+    private boolean serviceBound = false;
+
+    public FloatingPlayerViewModel(@NonNull Application application) {
+        super(application);
+        prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        restoreState();
+    }
+
+    /**
+     * Restore playback state from SharedPreferences
+     */
+    private void restoreState() {
+        String audiobookUrl = prefs.getString(KEY_CURRENT_AUDIOBOOK_URL, null);
+        if (audiobookUrl != null) {
+            String title = prefs.getString(KEY_CURRENT_AUDIOBOOK_TITLE, "");
+            String author = prefs.getString(KEY_CURRENT_AUDIOBOOK_AUTHOR, "");
+            String imageUrl = prefs.getString(KEY_CURRENT_AUDIOBOOK_IMAGE, "");
+            int trackIndex = prefs.getInt(KEY_CURRENT_TRACK_INDEX, 0);
+            long position = prefs.getLong(KEY_PLAYBACK_POSITION, 0);
+
+            Audiobook audiobook = new Audiobook();
+            audiobook.setUrl(audiobookUrl);
+            audiobook.setTitle(title);
+            audiobook.setAuthor(author);
+            audiobook.setImageUrl(imageUrl);
+
+            // Restore audio URLs and track names
+            String audioUrlsStr = prefs.getString(KEY_AUDIO_URLS, "");
+            String trackNamesStr = prefs.getString(KEY_TRACK_NAMES, "");
+
+            if (!audioUrlsStr.isEmpty()) {
+                List<String> audioUrls = parseStringList(audioUrlsStr);
+                List<String> trackNames = parseStringList(trackNamesStr);
+                audiobook.setAudioUrls(audioUrls);
+                audiobook.setTrackNames(trackNames);
+
+                List<AudioTrack> tracks = new ArrayList<>();
+                for (int i = 0; i < audioUrls.size(); i++) {
+                    String name = (trackNames != null && i < trackNames.size())
+                            ? trackNames.get(i)
+                            : "Track " + (i + 1);
+                    tracks.add(new AudioTrack(i + 1, name, audioUrls.get(i)));
+                }
+                trackList.postValue(tracks);
+            }
+
+            currentAudiobook.postValue(audiobook);
+            currentTrackIndex.postValue(trackIndex);
+            currentPosition.postValue(position);
+            isPlayerVisible.postValue(true);
+        }
+    }
+
+    private List<String> parseStringList(String str) {
+        List<String> result = new ArrayList<>();
+        if (str != null && !str.isEmpty()) {
+            String[] parts = str.split("\\|@@\\|");
+            for (String part : parts) {
+                if (!part.isEmpty()) {
+                    result.add(part);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Save current playback state to SharedPreferences
+     */
+    public void saveState() {
+        Audiobook book = currentAudiobook.getValue();
+        if (book != null) {
+            prefs.edit()
+                    .putString(KEY_CURRENT_AUDIOBOOK_URL, book.getUrl())
+                    .putString(KEY_CURRENT_AUDIOBOOK_TITLE, book.getTitle())
+                    .putString(KEY_CURRENT_AUDIOBOOK_AUTHOR, book.getAuthor())
+                    .putString(KEY_CURRENT_AUDIOBOOK_IMAGE, book.getImageUrl())
+                    .putInt(KEY_CURRENT_TRACK_INDEX, currentTrackIndex.getValue() != null ? currentTrackIndex.getValue() : 0)
+                    .putLong(KEY_PLAYBACK_POSITION, currentPosition.getValue() != null ? currentPosition.getValue() : 0)
+                    .putBoolean(KEY_IS_PLAYING, isPlaying.getValue() != null ? isPlaying.getValue() : false)
+                    .apply();
+
+            // Save audio URLs and track names
+            List<AudioTrack> tracks = trackList.getValue();
+            if (tracks != null && !tracks.isEmpty()) {
+                StringBuilder audioUrls = new StringBuilder();
+                StringBuilder trackNames = new StringBuilder();
+                for (int i = 0; i < tracks.size(); i++) {
+                    if (i > 0) {
+                        audioUrls.append("|@@|");
+                        trackNames.append("|@@|");
+                    }
+                    audioUrls.append(tracks.get(i).getUrl());
+                    trackNames.append(tracks.get(i).getTrackNumber());
+                }
+                prefs.edit()
+                        .putString(KEY_AUDIO_URLS, audioUrls.toString())
+                        .putString(KEY_TRACK_NAMES, trackNames.toString())
+                        .apply();
+            }
+        }
+    }
+
+    /**
+     * Clear saved state (when playback is stopped)
+     */
+    public void clearState() {
+        prefs.edit().clear().apply();
+        isPlayerVisible.postValue(false);
+        currentAudiobook.postValue(null);
+        trackList.postValue(new ArrayList<>());
+    }
+
+    // Getters for LiveData
+    public LiveData<Boolean> getIsPlayerVisible() { return isPlayerVisible; }
+    public LiveData<Boolean> getIsExpanded() { return isExpanded; }
+    public LiveData<Audiobook> getCurrentAudiobook() { return currentAudiobook; }
+    public LiveData<Integer> getCurrentTrackIndex() { return currentTrackIndex; }
+    public LiveData<Boolean> getIsPlaying() { return isPlaying; }
+    public LiveData<Long> getCurrentPosition() { return currentPosition; }
+    public LiveData<Long> getDuration() { return duration; }
+    public LiveData<List<AudioTrack>> getTrackList() { return trackList; }
+
+    // Setters for updating state
+    public void setPlayerVisible(boolean visible) {
+        isPlayerVisible.setValue(visible);
+    }
+
+    public void setExpanded(boolean expanded) {
+        isExpanded.setValue(expanded);
+    }
+
+    public void setCurrentAudiobook(Audiobook audiobook) {
+        currentAudiobook.setValue(audiobook);
+        isPlayerVisible.setValue(audiobook != null);
+
+        if (audiobook != null && audiobook.getAudioUrls() != null) {
+            List<AudioTrack> tracks = new ArrayList<>();
+            List<String> trackNames = audiobook.getTrackNames();
+            for (int i = 0; i < audiobook.getAudioUrls().size(); i++) {
+                String name = (trackNames != null && i < trackNames.size())
+                        ? trackNames.get(i)
+                        : "Track " + (i + 1);
+                tracks.add(new AudioTrack(i + 1, name, audiobook.getAudioUrls().get(i)));
+            }
+            trackList.setValue(tracks);
+        } else {
+            trackList.setValue(new ArrayList<>());
+        }
+    }
+
+    public void setCurrentTrackIndex(int index) {
+        currentTrackIndex.setValue(index);
+    }
+
+    public void setIsPlaying(boolean playing) {
+        isPlaying.setValue(playing);
+    }
+
+    public void setCurrentPosition(long position) {
+        currentPosition.setValue(position);
+    }
+
+    public void setDuration(long dur) {
+        duration.setValue(dur);
+    }
+
+    public void setTrackList(List<AudioTrack> tracks) {
+        trackList.setValue(tracks);
+    }
+
+    // Playback controls
+    public void togglePlayPause() {
+        if (playbackService != null && serviceBound) {
+            playbackService.togglePlayPause();
+        }
+    }
+
+    public void playTrack(int trackIndex) {
+        if (playbackService != null && serviceBound) {
+            playbackService.playTrack(trackIndex);
+        }
+    }
+
+    public void seekTo(long position) {
+        if (playbackService != null && serviceBound) {
+            playbackService.seekTo(position);
+        }
+    }
+
+    public void playNextTrack() {
+        if (playbackService != null && serviceBound) {
+            playbackService.playNextTrack();
+        }
+    }
+
+    public void playPreviousTrack() {
+        if (playbackService != null && serviceBound) {
+            playbackService.playPreviousTrack();
+        }
+    }
+
+    public void stopPlayback() {
+        if (playbackService != null && serviceBound) {
+            playbackService.stopPlayback();
+        }
+        clearState();
+    }
+
+    // Service binding
+    public void setPlaybackService(AudioPlaybackService service) {
+        this.playbackService = service;
+    }
+
+    public void setServiceBound(boolean bound) {
+        this.serviceBound = bound;
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        saveState();
+    }
+
+    /**
+     * Factory for creating FloatingPlayerViewModel
+     */
+    public static class Factory extends ViewModelProvider.AndroidViewModelFactory {
+        private final Application application;
+
+        public Factory(@NonNull Application application) {
+            super(application);
+            this.application = application;
+        }
+
+        @NonNull
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
+            if (modelClass.isAssignableFrom(FloatingPlayerViewModel.class)) {
+                return (T) new FloatingPlayerViewModel(application);
+            }
+            throw new IllegalArgumentException("Unknown ViewModel class");
+        }
+    }
+}

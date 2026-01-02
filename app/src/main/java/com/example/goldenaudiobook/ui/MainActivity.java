@@ -16,6 +16,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
+import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -23,12 +25,15 @@ import androidx.navigation.ui.NavigationUI;
 
 import com.example.goldenaudiobook.R;
 import com.example.goldenaudiobook.databinding.ActivityMainBinding;
+import com.example.goldenaudiobook.service.AudioPlaybackService;
 import com.example.goldenaudiobook.util.Utils;
+import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 import com.google.android.material.navigation.NavigationView;
 import com.skydoves.powermenu.PowerMenu;
 
 /**
  * Main Activity hosting the navigation graph and drawer
+ * Also hosts the FloatingPlayerFragment for persistent audio playback
  */
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
@@ -36,6 +41,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private AppBarConfiguration appBarConfiguration;
     private NavController navController;
     private PowerMenu dialogMenu;
+    private FloatingPlayerViewModel floatingPlayerViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,7 +51,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         setupToolbar();
         setupNavigation();
-
+        setupFloatingPlayer();
         initializeDialogMenu();
 
         // Check if notifications are enabled
@@ -55,10 +61,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             // Show dialog or alert to enable notifications
             Utils.openNotificationSettings(this);
         }
-
-
-
-
 
         View layout = binding.getRoot();
         dialogMenu.showAtCenter(layout);
@@ -135,6 +137,22 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
+    private void setupFloatingPlayer() {
+        // Initialize ViewModel
+        floatingPlayerViewModel = new ViewModelProvider(this,
+                new FloatingPlayerViewModel.Factory(getApplication()))
+                .get(FloatingPlayerViewModel.class);
+
+        // Add FloatingPlayerFragment if not already added
+        Fragment existingFragment = getSupportFragmentManager().findFragmentById(R.id.floating_player_container);
+        if (existingFragment == null) {
+            FloatingPlayerFragment floatingPlayerFragment = new FloatingPlayerFragment();
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.floating_player_container, floatingPlayerFragment)
+                    .commit();
+        }
+    }
+
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
@@ -188,6 +206,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         } else {
             super.onBackPressed();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Save playback state when app goes to background
+        if (floatingPlayerViewModel != null) {
+            floatingPlayerViewModel.saveState();
         }
     }
 

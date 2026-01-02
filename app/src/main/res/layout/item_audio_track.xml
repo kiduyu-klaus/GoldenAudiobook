@@ -30,7 +30,7 @@
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"
-        android:textColor="@color/on_secondary"
+        android:textColor="@color/black"
         android:textSize="14sp"
         tools:text="Track 1" />
 

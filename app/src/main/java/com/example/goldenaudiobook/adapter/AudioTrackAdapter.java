@@ -19,15 +19,31 @@ import com.example.goldenaudiobook.model.AudioTrack;
 public class AudioTrackAdapter extends ListAdapter<AudioTrack, AudioTrackAdapter.TrackViewHolder> {
 
     private final OnTrackClickListener listener;
+    private final OnTrackPositionClickListener positionListener;
     private int selectedPosition = -1;
 
     public interface OnTrackClickListener {
+        void onAudiobookClick(AudioTrack track, int position);
+
         void onTrackClick(AudioTrack track, int position);
     }
 
+    public interface OnTrackPositionClickListener {
+        void onTrackPositionClick(int position);
+    }
+
+    // Constructor with full AudioTrack listener
     public AudioTrackAdapter(OnTrackClickListener listener) {
         super(DIFF_CALLBACK);
         this.listener = listener;
+        this.positionListener = null;
+    }
+
+    // Constructor with position-only listener (for playlist)
+    public AudioTrackAdapter(OnTrackPositionClickListener positionListener) {
+        super(DIFF_CALLBACK);
+        this.listener = null;
+        this.positionListener = positionListener;
     }
 
     private static final DiffUtil.ItemCallback<AudioTrack> DIFF_CALLBACK =
@@ -92,8 +108,11 @@ public class AudioTrackAdapter extends ListAdapter<AudioTrack, AudioTrackAdapter
             }
 
             binding.getRoot().setOnClickListener(v -> {
+                int position = getAdapterPosition();
                 if (listener != null) {
-                    listener.onTrackClick(track, getAdapterPosition());
+                    listener.onTrackClick(track, position);
+                } else if (positionListener != null) {
+                    positionListener.onTrackPositionClick(position);
                 }
             });
         }

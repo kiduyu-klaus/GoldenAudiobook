@@ -9,8 +9,10 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
@@ -61,8 +63,6 @@ public class HomeFragment extends Fragment implements AudiobookAdapter.OnAudiobo
     private void setupSwipeRefresh() {
         binding.swipeRefresh.setOnRefreshListener(() -> {
             viewModel.refresh();
-            viewModel.loadRandomAudiobooks();
-
         });
     }
 
@@ -149,7 +149,7 @@ public class HomeFragment extends Fragment implements AudiobookAdapter.OnAudiobo
         }
     }
 
-    @Override
+    @OptIn(markerClass = UnstableApi.class) @Override
     public void onAudiobookClick(Audiobook audiobook) {
         // Navigate to audiobook detail
         Intent intent = new Intent(requireContext(), AudiobookDetailActivity.class);

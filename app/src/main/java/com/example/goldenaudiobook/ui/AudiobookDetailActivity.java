@@ -1,23 +1,22 @@
 package com.example.goldenaudiobook.ui;
 
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.view.View;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
-import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.PlaybackException;
-import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.session.MediaSession;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.bumptech.glide.Glide;
@@ -26,8 +25,9 @@ import com.example.goldenaudiobook.adapter.AudioTrackAdapter;
 import com.example.goldenaudiobook.databinding.ActivityAudiobookDetailBinding;
 import com.example.goldenaudiobook.model.Audiobook;
 import com.example.goldenaudiobook.model.AudioTrack;
+import com.example.goldenaudiobook.service.AudioPlaybackService;
 import com.example.goldenaudiobook.viewmodel.AudiobookDetailViewModel;
-import com.example.goldenaudiobook.util.NotificationHelper;
+import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,17 +35,68 @@ import java.util.List;
 /**
  * Activity displaying audiobook details with audio playback
  */
-@UnstableApi
-public class AudiobookDetailActivity extends AppCompatActivity implements AudioTrackAdapter.OnTrackClickListener {
+@UnstableApi public class AudiobookDetailActivity extends AppCompatActivity implements AudioTrackAdapter.OnTrackClickListener {
 
     private ActivityAudiobookDetailBinding binding;
     private AudiobookDetailViewModel viewModel;
+    private FloatingPlayerViewModel floatingPlayerViewModel;
     private AudioTrackAdapter trackAdapter;
-    private androidx.media3.exoplayer.ExoPlayer player;
-    private MediaSession mediaSession;
-    private NotificationHelper notificationHelper;
+    private AudioPlaybackService playbackService;
+    private boolean serviceBound = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isUserSeeking = false;
+
+    private ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            AudioPlaybackService.AudioServiceBinder binder = (AudioPlaybackService.AudioServiceBinder) service;
+            playbackService = binder.getService();
+            serviceBound = true;
+
+            // Set up playback state listener
+            playbackService.setPlaybackStateListener(new AudioPlaybackService.PlaybackStateListener() {
+                @Override
+                public void onPlaybackStateChanged(boolean isPlaying) {
+                    runOnUiThread(() -> updatePlayPauseButton(isPlaying));
+                }
+
+                @Override
+                public void onMediaItemTransition(int currentIndex) {
+                    runOnUiThread(() -> {
+                        trackAdapter.setSelectedPosition(currentIndex);
+                        viewModel.setCurrentTrack(currentIndex);
+                    });
+                }
+
+                @Override
+                public void onPlayerError(String error) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(AudiobookDetailActivity.this,
+                                "Error playing audio: " + error, Toast.LENGTH_LONG).show();
+                    });
+                }
+
+                @Override
+                public void onPlaybackPositionChanged(long position, long duration) {
+                    // Handled by periodic update
+                }
+            });
+
+            // Load audiobook into service if we have it
+            Audiobook audiobook = viewModel.getAudiobook().getValue();
+            if (audiobook != null) {
+                Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
+                int trackIndex = currentIndex != null ? currentIndex : 0;
+                playbackService.loadAudiobook(audiobook, trackIndex);
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            serviceBound = false;
+            playbackService = null;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,13 +106,18 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
 
         viewModel = new ViewModelProvider(this).get(AudiobookDetailViewModel.class);
 
+        // Initialize FloatingPlayerViewModel (shared across activities)
+        floatingPlayerViewModel = new ViewModelProvider(this,
+                new FloatingPlayerViewModel.Factory(getApplication()))
+                .get(FloatingPlayerViewModel.class);
+
         setupToolbar();
         setupRecyclerView();
         setupPlayerControls();
         observeViewModel();
 
-        // Initialize player
-        initializePlayer();
+        // Bind to the playback service
+        bindPlaybackService();
 
         // Load audiobook details
         String url = getIntent().getStringExtra("audiobook_url");
@@ -99,13 +155,17 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
         // Previous button
         binding.previousButton.setOnClickListener(v -> {
             viewModel.playPreviousTrack();
-            playCurrentTrack();
+            if (serviceBound && playbackService != null) {
+                playbackService.playPreviousTrack();
+            }
         });
 
         // Next button
         binding.nextButton.setOnClickListener(v -> {
             viewModel.playNextTrack();
-            playCurrentTrack();
+            if (serviceBound && playbackService != null) {
+                playbackService.playNextTrack();
+            }
         });
 
         // SeekBar
@@ -124,8 +184,8 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                if (player != null) {
-                    player.seekTo(seekBar.getProgress());
+                if (serviceBound && playbackService != null) {
+                    playbackService.seekTo(seekBar.getProgress());
                 }
                 isUserSeeking = false;
             }
@@ -133,64 +193,15 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
 
         // Replay button
         binding.replayButton.setOnClickListener(v -> {
-            if (player != null) {
-                player.seekTo(0);
+            if (serviceBound && playbackService != null) {
+                playbackService.seekTo(0);
             }
         });
     }
 
-    private void initializePlayer() {
-        // Create notification channel (do this once)
-        NotificationHelper.createNotificationChannel(this);
-
-        // Initialize notification helper
-        notificationHelper = new NotificationHelper(this);
-
-        // Initialize ExoPlayer
-        player = new androidx.media3.exoplayer.ExoPlayer.Builder(this).build();
-
-        // Initialize MediaSession
-        mediaSession = new MediaSession.Builder(this, player)
-                .setId("audiobook_playback_" + System.currentTimeMillis())
-                .build();
-
-        // Add player listeners
-        player.addListener(new Player.Listener() {
-            @Override
-            public void onPlaybackStateChanged(int playbackState) {
-                updatePlayerUI();
-            }
-
-            @Override
-            public void onIsPlayingChanged(boolean isPlaying) {
-                viewModel.setPlaying(isPlaying);
-                updatePlayerUI();
-                if (isPlaying) {
-                    startProgressUpdate();
-                } else {
-                    stopProgressUpdate();
-                }
-            }
-
-            @Override
-            public void onPlayerError(PlaybackException error) {
-                Toast.makeText(AudiobookDetailActivity.this,
-                        "Error playing audio: " + error.getMessage(), Toast.LENGTH_LONG).show();
-            }
-
-            @Override
-            public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-                Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
-                if (currentIndex != null) {
-                    trackAdapter.setSelectedPosition(currentIndex);
-                }
-            }
-        });
-
-        binding.playerView.setPlayer(player);
-
-        // Initialize the PlayerNotificationManager
-        notificationHelper.getPlayerNotificationManager(player, mediaSession);
+    private void bindPlaybackService() {
+        Intent serviceIntent = new Intent(this, AudioPlaybackService.class);
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
     private void observeViewModel() {
@@ -198,8 +209,17 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
             if (audiobook != null) {
                 displayAudiobookInfo(audiobook);
                 setupTracks(audiobook);
-                // Update notification with audiobook info
-                notificationHelper.updateAudiobook(audiobook);
+
+                // Update FloatingPlayerViewModel to show in floating player
+                floatingPlayerViewModel.setCurrentAudiobook(audiobook);
+
+                // Load audiobook into service if bound
+                if (serviceBound && playbackService != null) {
+                    Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
+                    int trackIndex = currentIndex != null ? currentIndex : 0;
+                    playbackService.loadAudiobook(audiobook, trackIndex);
+                    floatingPlayerViewModel.setCurrentTrackIndex(trackIndex);
+                }
             }
         });
 
@@ -221,7 +241,6 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
         viewModel.getCurrentTrackIndex().observe(this, index -> {
             if (index != null) {
                 trackAdapter.setSelectedPosition(index);
-                playCurrentTrack();
             }
         });
     }
@@ -296,37 +315,24 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
         }
     }
 
-    private void playCurrentTrack() {
-        Audiobook audiobook = viewModel.getAudiobook().getValue();
-        Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
-
-        if (audiobook != null && audiobook.getAudioUrls() != null && currentIndex != null
-                && currentIndex < audiobook.getAudioUrls().size()) {
-
-            String audioUrl = audiobook.getAudioUrls().get(currentIndex);
-            Uri uri = Uri.parse(audioUrl);
-            MediaItem mediaItem = MediaItem.fromUri(uri);
-            player.setMediaItem(mediaItem);
-            player.prepare();
-            player.play();
+    private void togglePlayPause() {
+        if (serviceBound && playbackService != null) {
+            playbackService.togglePlayPause();
         }
     }
 
-    private void togglePlayPause() {
-        if (player != null) {
-            if (player.isPlaying()) {
-                player.pause();
-            } else {
-                player.play();
-            }
+    private void updatePlayPauseButton(boolean isPlaying) {
+        if (isPlaying) {
+            binding.playPauseButton.setImageResource(R.drawable.ic_pause);
+        } else {
+            binding.playPauseButton.setImageResource(R.drawable.ic_play);
         }
     }
 
     private void updatePlayerUI() {
-        if (player != null) {
-            // Update seekbar
-            long duration = player.getDuration();
-            long position = player.getCurrentPosition();
+        if (serviceBound && playbackService != null) {
+            long duration = playbackService.getDuration();
+            long position = playbackService.getCurrentPosition();
 
             if (duration > 0) {
                 binding.seekBar.setMax((int) duration);
@@ -340,14 +346,9 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
             // Update navigation buttons
             binding.previousButton.setEnabled(viewModel.hasPreviousTrack());
             binding.nextButton.setEnabled(viewModel.hasNextTrack());
-        }
-    }
 
-    private void updatePlayPauseButton(boolean isPlaying) {
-        if (isPlaying) {
-            binding.playPauseButton.setImageResource(R.drawable.ic_pause);
-        } else {
-            binding.playPauseButton.setImageResource(R.drawable.ic_play);
+            // Update play/pause button
+            updatePlayPauseButton(playbackService.isPlaying());
         }
     }
 
@@ -355,7 +356,8 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (player != null && player.isPlaying() && !isUserSeeking) {
+                if (serviceBound && playbackService != null && 
+                    playbackService.isPlaying() && !isUserSeeking) {
                     updatePlayerUI();
                     handler.postDelayed(this, 100);
                 }
@@ -377,30 +379,60 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     }
 
     @Override
+    public void onAudiobookClick(AudioTrack track, int position) {
+        viewModel.setCurrentTrack(position);
+        trackAdapter.setSelectedPosition(position);
+
+        // Update floating player
+        floatingPlayerViewModel.setCurrentTrackIndex(position);
+        floatingPlayerViewModel.setIsPlaying(true);
+
+        if (serviceBound && playbackService != null) {
+            playbackService.playTrack(position);
+        }
+    }
+
+    @Override
     public void onTrackClick(AudioTrack track, int position) {
         viewModel.setCurrentTrack(position);
         trackAdapter.setSelectedPosition(position);
+
+        // Update floating player
+        floatingPlayerViewModel.setCurrentTrackIndex(position);
+        floatingPlayerViewModel.setIsPlaying(true);
+
+        if (serviceBound && playbackService != null) {
+            playbackService.playTrack(position);
+        }
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        if (player != null) {
-            player.setPlayWhenReady(true);
+        
+        // Start progress updates when activity is visible
+        if (serviceBound && playbackService != null && playbackService.isPlaying()) {
+            startProgressUpdate();
         }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        if (player != null) {
-            player.setPlayWhenReady(false);
-        }
+        stopProgressUpdate();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
 
+        // Unbind from service
+        if (serviceBound) {
+            if (playbackService != null) {
+                playbackService.removePlaybackStateListener();
+            }
+            unbindService(serviceConnection);
+            serviceBound = false;
+        }
     }
 }
