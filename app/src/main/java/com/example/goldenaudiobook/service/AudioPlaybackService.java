@@ -7,7 +7,9 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -22,6 +24,9 @@ import androidx.media3.session.MediaSession;
 import com.example.goldenaudiobook.model.Audiobook;
 import com.example.goldenaudiobook.ui.AudiobookDetailActivity;
 import com.example.goldenaudiobook.util.NotificationHelper;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Foreground service for background audio playback
@@ -44,6 +49,11 @@ public class AudioPlaybackService extends Service {
     public static final String EXTRA_AUDIOBOOK_TITLE = "audiobook_title";
     public static final String EXTRA_AUDIO_URL = "audio_url";
     public static final String EXTRA_TRACK_INDEX = "track_index";
+    public static final String EXTRA_PLAYBACK_POSITION = "playback_position";
+    public static final String EXTRA_WAS_PLAYING = "was_playing";
+    public static final String EXTRA_RESUME_FROM_STATE = "resume_from_state";
+    public static final String EXTRA_AUDIO_URLS = "audio_urls";
+    public static final String EXTRA_TRACK_NAMES = "track_names";
 
     // Notification ID
     private static final int NOTIFICATION_ID = 1001;
@@ -55,6 +65,29 @@ public class AudioPlaybackService extends Service {
     private Audiobook currentAudiobook;
     private int currentTrackIndex = 0;
     private PlaybackStateListener playbackStateListener;
+    private final Handler positionUpdateHandler = new Handler(Looper.getMainLooper());
+    private final Runnable positionUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (player != null && playbackStateListener != null) {
+                long position = player.getCurrentPosition();
+                long duration = player.getDuration();
+                playbackStateListener.onPlaybackPositionChanged(position, duration);
+            }
+            // Continue updating while playing
+            if (player != null && player.isPlaying()) {
+                positionUpdateHandler.postDelayed(this, 100);
+            }
+        }
+    };
+
+    public void play() {
+        player.play();
+    }
+
+    public void pause() {
+        player.pause();
+    }
 
     /**
      * Interface for notifying activity about playback state changes
@@ -122,6 +155,17 @@ public class AudioPlaybackService extends Service {
 
                 if (isPlaying) {
                     startForegroundService();
+                    // Start position updates
+                    positionUpdateHandler.removeCallbacks(positionUpdateRunnable);
+                    positionUpdateHandler.post(positionUpdateRunnable);
+                } else {
+                    // Stop position updates
+                    positionUpdateHandler.removeCallbacks(positionUpdateRunnable);
+                    // Final position update
+                    if (playbackStateListener != null) {
+                        playbackStateListener.onPlaybackPositionChanged(
+                                player.getCurrentPosition(), player.getDuration());
+                    }
                 }
 
                 // Notify listener
@@ -159,13 +203,36 @@ public class AudioPlaybackService extends Service {
         Log.d(TAG, "onStartCommand: " + (intent != null ? intent.getAction() : "null"));
 
         if (intent != null) {
-            // Handle audiobook data if provided
-            if (intent.hasExtra(EXTRA_AUDIOBOOK_URL)) {
+            // Check if this is a resume from saved state
+            boolean resumeFromState = intent.getBooleanExtra(EXTRA_RESUME_FROM_STATE, false);
+
+            if (resumeFromState) {
+                // Handle resume from saved state
+                handleResumeFromState(intent);
+            }
+
+            // Check if this is a notification click resume
+            boolean isResumeFromNotification = intent.getBooleanExtra("resume_from_notification", false);
+
+            if (isResumeFromNotification) {
+                // Handle resume from notification
+                handleResumeFromNotification(intent);
+            }
+
+            // Handle audiobook data if provided (for new playback)
+            if (intent.hasExtra(EXTRA_AUDIOBOOK_URL) && !isResumeFromNotification && !resumeFromState) {
                 String url = intent.getStringExtra(EXTRA_AUDIOBOOK_URL);
                 String title = intent.getStringExtra(EXTRA_AUDIOBOOK_TITLE);
+                int trackIndex = intent.getIntExtra(EXTRA_TRACK_INDEX, 0);
 
-                if (currentAudiobook == null || !url.equals(currentAudiobook.getUrl())) {
-                    Log.d(TAG, "Loading new audiobook: " + title);
+                // Build audiobook from intent extras
+                Audiobook audiobook = buildAudiobookFromIntent(intent);
+
+                if (audiobook != null && audiobook.getAudioUrls() != null && !audiobook.getAudioUrls().isEmpty()) {
+                    if (currentAudiobook == null || !url.equals(currentAudiobook.getUrl())) {
+                        Log.d(TAG, "Loading new audiobook from intent: " + title);
+                    }
+                    loadAudiobook(audiobook, trackIndex);
                 }
             }
 
@@ -176,6 +243,108 @@ public class AudioPlaybackService extends Service {
         }
 
         return START_STICKY; // Service will be restarted if killed
+    }
+
+    /**
+     * Build an Audiobook object from intent extras
+     */
+    private Audiobook buildAudiobookFromIntent(Intent intent) {
+        String url = intent.getStringExtra(EXTRA_AUDIOBOOK_URL);
+        String title = intent.getStringExtra(EXTRA_AUDIOBOOK_TITLE);
+        String author = intent.getStringExtra("audiobook_author");
+        String imageUrl = intent.getStringExtra("audiobook_image");
+
+        if (url == null) return null;
+
+        Audiobook audiobook = new Audiobook();
+        audiobook.setUrl(url);
+        audiobook.setTitle(title != null ? title : "");
+        audiobook.setAuthor(author != null ? author : "");
+        audiobook.setImageUrl(imageUrl != null ? imageUrl : "");
+
+        // Get audio URLs from intent
+        String audioUrlsStr = intent.getStringExtra(EXTRA_AUDIO_URLS);
+        String trackNamesStr = intent.getStringExtra(EXTRA_TRACK_NAMES);
+
+        if (audioUrlsStr != null && !audioUrlsStr.isEmpty()) {
+            List<String> audioUrls = parseAudioUrls(audioUrlsStr);
+            List<String> trackNames = trackNamesStr != null ? parseAudioUrls(trackNamesStr) : new ArrayList<>();
+            audiobook.setAudioUrls(audioUrls);
+            audiobook.setTrackNames(trackNames);
+        }
+
+        return audiobook;
+    }
+
+    private List<String> parseAudioUrls(String str) {
+        List<String> result = new ArrayList<>();
+        if (str != null && !str.isEmpty()) {
+            String[] parts = str.split("\\|@@\\|");
+            for (String part : parts) {
+                if (!part.isEmpty()) {
+                    result.add(part);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Handle resume from saved state (e.g., when app restarts)
+     */
+    private void handleResumeFromState(Intent intent) {
+        String url = intent.getStringExtra(EXTRA_AUDIOBOOK_URL);
+        int trackIndex = intent.getIntExtra(EXTRA_TRACK_INDEX, 0);
+        long position = intent.getLongExtra(EXTRA_PLAYBACK_POSITION, 0);
+        boolean wasPlaying = intent.getBooleanExtra(EXTRA_WAS_PLAYING, false);
+
+        Log.d(TAG, "Resuming from state - URL: " + url + ", track: " + trackIndex + ", position: " + position);
+
+        // Build audiobook from intent
+        Audiobook audiobook = buildAudiobookFromIntent(intent);
+
+        if (audiobook != null && audiobook.getAudioUrls() != null && !audiobook.getAudioUrls().isEmpty()) {
+            loadAudiobook(audiobook, trackIndex);
+            if (position > 0) {
+                player.seekTo(trackIndex, position);
+            }
+            if (wasPlaying) {
+                player.play();
+            }
+        }
+    }
+
+    /**
+     * Handle resume from notification click
+     */
+    private void handleResumeFromNotification(Intent intent) {
+        String url = intent.getStringExtra(EXTRA_AUDIOBOOK_URL);
+        int trackIndex = intent.getIntExtra("track_index", 0);
+        long position = intent.getLongExtra("playback_position", 0);
+        boolean wasPlaying = intent.getBooleanExtra("was_playing", false);
+
+        Log.d(TAG, "Resuming from notification - URL: " + url + ", track: " + trackIndex + ", position: " + position);
+
+        // If we have currentAudiobook and it matches, resume
+        if (currentAudiobook != null && url != null && url.equals(currentAudiobook.getUrl())) {
+            if (position > 0) {
+                player.seekTo(trackIndex, position);
+            }
+            if (wasPlaying) {
+                player.play();
+            }
+        } else {
+            // Need to rebuild audiobook from currentAudiobook if available
+            if (currentAudiobook != null) {
+                loadAudiobook(currentAudiobook, trackIndex);
+                if (position > 0) {
+                    player.seekTo(trackIndex, position);
+                }
+                if (wasPlaying) {
+                    player.play();
+                }
+            }
+        }
     }
 
     @Nullable
@@ -195,6 +364,9 @@ public class AudioPlaybackService extends Service {
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service onDestroy");
+
+        // Stop position updates
+        positionUpdateHandler.removeCallbacks(positionUpdateRunnable);
 
         // Release resources
         if (notificationHelper != null) {
@@ -344,6 +516,48 @@ public class AudioPlaybackService extends Service {
             }
 
             Log.d(TAG, "Loaded audiobook with " + audiobook.getAudioUrls().size() + " tracks");
+        } else {
+            Log.e(TAG, "Cannot load audiobook: null or empty audio URLs");
+        }
+    }
+
+    /**
+     * Loads an audiobook with all audio URLs and track names
+     */
+    public void loadAudiobookWithTracks(Audiobook audiobook, int trackIndex, List<String> audioUrls, List<String> trackNames) {
+        this.currentAudiobook = audiobook;
+        this.currentTrackIndex = trackIndex;
+
+        if (audiobook != null && audioUrls != null && !audioUrls.isEmpty()) {
+            // Clear existing media items
+            player.clearMediaItems();
+
+            // Create media items for all tracks
+            for (int i = 0; i < audioUrls.size(); i++) {
+                String audioUrl = audioUrls.get(i);
+                String trackName = trackNames != null && i < trackNames.size()
+                        ? trackNames.get(i)
+                        : "Track " + (i + 1);
+
+                MediaItem mediaItem = new MediaItem.Builder()
+                        .setUri(Uri.parse(audioUrl))
+                        .setMediaId(audioUrl)
+                        .setTag(i)
+                        .build();
+                player.addMediaItem(mediaItem);
+            }
+
+            // Seek to the requested track
+            if (trackIndex >= 0 && trackIndex < player.getMediaItemCount()) {
+                player.seekTo(trackIndex, 0);
+            }
+
+            // Update notification
+            if (notificationHelper != null) {
+                notificationHelper.updateAudiobook(audiobook);
+            }
+
+            Log.d(TAG, "Loaded audiobook with " + audioUrls.size() + " tracks");
         }
     }
 
@@ -351,10 +565,23 @@ public class AudioPlaybackService extends Service {
      * Plays a specific track by index
      */
     public void playTrack(int trackIndex) {
-        if (player != null && trackIndex >= 0 && trackIndex < player.getMediaItemCount()) {
-            player.seekTo(trackIndex, 0);
-            player.play();
-            currentTrackIndex = trackIndex;
+        Log.d(TAG, "playTrack called with index: " + trackIndex + ", mediaItemCount: " + player.getMediaItemCount());
+
+        if (player != null) {
+            if (player.getMediaItemCount() == 0) {
+                Log.e(TAG, "No media items loaded, cannot play track");
+                return;
+            }
+
+            if (trackIndex >= 0 && trackIndex < player.getMediaItemCount()) {
+                player.seekTo(trackIndex, 0);
+                player.play();
+                currentTrackIndex = trackIndex;
+            } else {
+                Log.e(TAG, "Invalid track index: " + trackIndex);
+            }
+        } else {
+            Log.e(TAG, "Player is null, cannot play track");
         }
     }
 
@@ -403,15 +630,45 @@ public class AudioPlaybackService extends Service {
     }
 
     /**
+     * Gets the current media item count
+     */
+    public int getMediaItemCount() {
+        return player != null ? player.getMediaItemCount() : 0;
+    }
+
+    /**
+     * Checks if there's a next track
+     */
+    public boolean hasNextTrack() {
+        return player != null && player.hasNextMediaItem();
+    }
+
+    /**
+     * Checks if there's a previous track
+     */
+    public boolean hasPreviousTrack() {
+        return player != null && player.hasPreviousMediaItem();
+    }
+
+    /**
      * Toggles play/pause
      */
     public void togglePlayPause() {
+        Log.d(TAG, "togglePlayPause called, player=" + player + ", isPlaying=" + (player != null ? player.isPlaying() : "null"));
+
         if (player != null) {
+            if (player.getMediaItemCount() == 0) {
+                Log.e(TAG, "No media items loaded, cannot toggle play/pause");
+                return;
+            }
+
             if (player.isPlaying()) {
                 player.pause();
             } else {
                 player.play();
             }
+        } else {
+            Log.e(TAG, "Player is null, cannot toggle play/pause");
         }
     }
 
@@ -453,17 +710,6 @@ public class AudioPlaybackService extends Service {
 
         stopForeground(true);
         stopSelf();
-    }
-    public void play() {
-        if (player != null) {
-            player.play();
-        }
-    }
-
-    public void pause() {
-        if (player != null) {
-            player.pause();
-        }
     }
 
     /**

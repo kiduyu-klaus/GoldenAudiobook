@@ -443,10 +443,31 @@ import java.util.List;
 
     private void togglePlayPause() {
         Log.d(TAG, "togglePlayPause called, serviceBound=" + serviceBound + ", playbackService=" + playbackService);
-        if (serviceBound && playbackService != null) {
-            playbackService.togglePlayPause();
-        } else {
+
+        if (!serviceBound || playbackService == null) {
             Log.e(TAG, "Cannot toggle play/pause - service not bound");
+            return;
+        }
+
+        // Check if media items are loaded
+        if (playbackService.getMediaItemCount() == 0) {
+            // No media loaded, load the current audiobook
+            Audiobook audiobook = viewModel.getAudiobook().getValue();
+            if (audiobook != null && audiobook.getAudioUrls() != null && !audiobook.getAudioUrls().isEmpty()) {
+                Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
+                int trackIndex = currentIndex != null ? currentIndex : 0;
+
+                Log.d(TAG, "Loading audiobook before play: " + audiobook.getTitle() + " at track: " + trackIndex);
+                playbackService.loadAudiobook(audiobook, trackIndex);
+
+                // Start playing after loading
+                playbackService.play();
+            } else {
+                Log.e(TAG, "Cannot load audiobook - no audio URLs available");
+            }
+        } else {
+            // Media is loaded, just toggle
+            playbackService.togglePlayPause();
         }
     }
 

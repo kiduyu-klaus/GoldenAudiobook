@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -276,7 +277,7 @@ import java.util.HashMap;
             if (pos > 0) {
                 playbackService.seekTo(pos);
             }
-            playbackService.playTrack(trackIndex);
+            playbackService.play();
         }
     }
 
@@ -319,10 +320,129 @@ import java.util.HashMap;
     // Service binding
     public void setPlaybackService(AudioPlaybackService service) {
         this.playbackService = service;
+
+        // If we have saved state and service just connected, try to restore playback
+        // Use post to ensure state is fully restored first
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (service != null && hasSavedState()) {
+                restorePlaybackFromState();
+            }
+        }, 200);
     }
 
     public void setServiceBound(boolean bound) {
         this.serviceBound = bound;
+
+        // If service just became bound and we have saved state, restore playback
+        if (bound && playbackService != null && hasSavedState()) {
+            // Use post to ensure state is fully restored
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (hasSavedState()) {
+                    restorePlaybackFromState();
+                }
+            }, 200);
+        }
+    }
+
+    /**
+     * Restore playback from saved state
+     */
+    public void restorePlaybackFromState() {
+        if (playbackService == null || !serviceBound) {
+            Log.e("FloatingPlayerVM", "Cannot restore playback: service not bound");
+            return;
+        }
+
+        Audiobook book = currentAudiobook.getValue();
+        if (book == null || book.getAudioUrls() == null || book.getAudioUrls().isEmpty()) {
+            Log.e("FloatingPlayerVM", "Cannot restore playback: no audiobook or audio URLs");
+            // Try to rebuild from SharedPreferences directly
+            if (hasSavedState()) {
+                Log.d("FloatingPlayerVM", "Trying to rebuild audiobook from SharedPreferences");
+                rebuildAndRestoreFromPrefs();
+            }
+            return;
+        }
+
+        Integer trackIndex = currentTrackIndex.getValue();
+        Long position = currentPosition.getValue();
+        int index = trackIndex != null ? trackIndex : 0;
+        long pos = position != null ? position : 0;
+        Boolean playing = isPlaying.getValue();
+
+        Log.d("FloatingPlayerVM", "Restoring playback - track: " + index + ", position: " + pos + ", wasPlaying: " + playing);
+
+        // Load audiobook into service
+        playbackService.loadAudiobook(book, index);
+
+        // Restore position and playing state
+        if (pos > 0) {
+            playbackService.seekTo(pos);
+        }
+
+        if (playing != null && playing) {
+            playbackService.play();
+        }
+    }
+
+    /**
+     * Rebuild audiobook from SharedPreferences and restore playback
+     */
+    private void rebuildAndRestoreFromPrefs() {
+        String audioUrlsStr = prefs.getString(KEY_AUDIO_URLS, "");
+        String trackNamesStr = prefs.getString(KEY_TRACK_NAMES, "");
+
+        if (audioUrlsStr.isEmpty()) {
+            Log.e("FloatingPlayerVM", "Cannot rebuild: no audio URLs in prefs");
+            return;
+        }
+
+        List<String> audioUrls = parseStringList(audioUrlsStr);
+        List<String> trackNames = trackNamesStr.isEmpty() ? new ArrayList<>() : parseStringList(trackNamesStr);
+
+        String title = prefs.getString(KEY_CURRENT_AUDIOBOOK_TITLE, "");
+        String author = prefs.getString(KEY_CURRENT_AUDIOBOOK_AUTHOR, "");
+        String url = prefs.getString(KEY_CURRENT_AUDIOBOOK_URL, "");
+        String imageUrl = prefs.getString(KEY_CURRENT_AUDIOBOOK_IMAGE, "");
+        int trackIndex = prefs.getInt(KEY_CURRENT_TRACK_INDEX, 0);
+        long position = prefs.getLong(KEY_PLAYBACK_POSITION, 0);
+        boolean wasPlaying = prefs.getBoolean(KEY_IS_PLAYING, false);
+
+        Audiobook audiobook = new Audiobook();
+        audiobook.setUrl(url);
+        audiobook.setTitle(title);
+        audiobook.setAuthor(author);
+        audiobook.setImageUrl(imageUrl);
+        audiobook.setAudioUrls(audioUrls);
+        audiobook.setTrackNames(trackNames);
+
+        // Update ViewModel state
+        currentAudiobook.postValue(audiobook);
+        currentTrackIndex.postValue(trackIndex);
+        currentPosition.postValue(position);
+        isPlayerVisible.postValue(true);
+
+        // Build track list
+        List<AudioTrack> tracks = new ArrayList<>();
+        for (int i = 0; i < audioUrls.size(); i++) {
+            String name = (trackNames != null && i < trackNames.size())
+                    ? trackNames.get(i)
+                    : "Track " + (i + 1);
+            tracks.add(new AudioTrack(i + 1, name, audioUrls.get(i)));
+        }
+        trackList.postValue(tracks);
+
+        // Restore playback
+        Log.d("FloatingPlayerVM", "Rebuilt audiobook, restoring playback");
+        if (playbackService != null && serviceBound) {
+            playbackService.loadAudiobook(audiobook, trackIndex);
+            if (position > 0) {
+                playbackService.seekTo(position);
+            }
+            if (wasPlaying) {
+                playbackService.play();
+            }
+        }
     }
 
     @Override
@@ -339,7 +459,7 @@ import java.util.HashMap;
      * Factory for creating FloatingPlayerViewModel
      */
     public static class Factory extends ViewModelProvider.AndroidViewModelFactory {
-        private final Application application;
+        Application application;
         public Factory(@NonNull Application application) {
             super(application);
             this.application = application;
