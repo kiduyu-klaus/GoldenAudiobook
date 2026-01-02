@@ -802,14 +802,22 @@ public class WebDataSource {
             try {
                 List<Category> categories = new ArrayList<>();
 
-                Document doc = Jsoup.connect(BASE_URL + "category/")
+                Document doc = Jsoup.connect("https://goldenaudiobook.net/wp-content/uploads/2018/08/611")
                         .timeout(TIMEOUT)
+                        .ignoreHttpErrors(true)
                         .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
                         .get();
 
-                Elements categoryItems = doc.select("ul ul li.cat-item, li.cat-item");
+                //Log.i(TAG, "getCategories: "+ doc.html());
+
+                Elements categoryItems = doc.select(
+                        "div.widget.widget_categories:not(#categories-2) ul > li.cat-item"
+                );
+
                 if (categoryItems.isEmpty()) {
-                    categoryItems = doc.select(".categories-list li, .cat-item");
+                    Element firstWidget = doc.selectFirst("div.widget.widget_categories");
+                    categoryItems = firstWidget.select("ul > li.cat-item");
+
                 }
 
                 for (Element item : categoryItems) {
@@ -817,8 +825,26 @@ public class WebDataSource {
                     if (link != null) {
                         String name = link.text();
                         String url = link.attr("href");
+                        // Extract book count from the category text
+                        // WordPress typically formats as "Category Name (count)"
+                        int itemCount = 0;
+                        String fullText = item.text();
+                        // Look for pattern like "(25)" at the end of the text
+                        int parenStart = fullText.lastIndexOf('(');
+                        int parenEnd = fullText.lastIndexOf(')');
+                        if (parenStart >= 0 && parenEnd > parenStart) {
+                            String countStr = fullText.substring(parenStart + 1, parenEnd);
+                            try {
+                                itemCount = Integer.parseInt(countStr.trim());
+                            } catch (NumberFormatException e) {
+                                Log.w(TAG, "Could not parse category count: " + countStr);
+
+                            }
+                        }
                         if (!name.isEmpty() && !url.isEmpty()) {
-                            categories.add(new Category(name, url));
+                            Category category = new Category(name, url);
+                            category.setItemCount(itemCount);
+                            categories.add(category);
                         }
                     }
                 }

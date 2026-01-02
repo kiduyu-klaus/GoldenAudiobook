@@ -64,6 +64,13 @@ public class CategoryAdapter extends ListAdapter<Category, CategoryAdapter.Categ
 
         void bind(Category category) {
             binding.categoryName.setText(category.getName());
+            // Display book count
+            int count = category.getItemCount();
+            if (count > 0) {
+                binding.categoryCount.setText(count + " books");
+            } else {
+                binding.categoryCount.setText("0 books");
+            }
 
             // Set click listener
             binding.getRoot().setOnClickListener(v -> {

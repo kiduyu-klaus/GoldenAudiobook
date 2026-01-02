@@ -37,6 +37,16 @@
             android:textStyle="bold"
             tools:text="Fantasy" />
 
+        <TextView
+            android:id="@+id/category_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/on_primary"
+            android:textSize="12sp"
+            android:alpha="0.8"
+            tools:text="25 books" />
+
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>
