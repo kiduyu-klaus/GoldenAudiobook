@@ -60,7 +60,9 @@ public class HomeFragment extends Fragment implements AudiobookAdapter.OnAudiobo
 
     private void setupSwipeRefresh() {
         binding.swipeRefresh.setOnRefreshListener(() -> {
-            //viewModel.refresh();
+            viewModel.refresh();
+            viewModel.loadRandomAudiobooks();
+
         });
     }
 

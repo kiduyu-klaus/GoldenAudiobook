@@ -72,6 +72,10 @@ public class WebDataSource {
                     newurl = BASE_URL+"?_page="+(currentPage+1);
                     Log.i(TAG, "getRandomAudiobooksPage: next "+newurl);
                     currentPage++; //
+                }else{
+                    if(currentPage>1) { //
+                        currentPage--;
+                    }
                 }
                 Document doc = Jsoup.connect(newurl)
                         .timeout(TIMEOUT)
