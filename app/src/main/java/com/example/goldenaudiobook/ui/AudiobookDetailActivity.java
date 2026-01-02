@@ -140,8 +140,10 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
 
         player = new androidx.media3.exoplayer.ExoPlayer.Builder(this).build();
 
-        // Initialize MediaSession
-        mediaSession = new MediaSession.Builder(this, player).build();
+        // Initialize MediaSession with a unique ID
+        mediaSession = new MediaSession.Builder(this, player)
+                .setId("audiobook_playback_session") // Add unique session ID
+                .build();
 
         player.addListener(new Player.Listener() {
             @Override
