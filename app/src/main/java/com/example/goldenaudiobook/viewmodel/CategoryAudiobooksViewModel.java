@@ -19,8 +19,10 @@ public class CategoryAudiobooksViewModel extends ViewModel {
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>();
     private final MutableLiveData<String> error = new MutableLiveData<>();
     private final MutableLiveData<String> categoryName = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> hasNextPage = new MutableLiveData<>(false);
 
     private String currentCategoryUrl;
+    private String nextPageUrl;
 
     public CategoryAudiobooksViewModel() {
         repository = new AudiobookRepository();
@@ -42,17 +44,27 @@ public class CategoryAudiobooksViewModel extends ViewModel {
         return categoryName;
     }
 
+    public LiveData<Boolean> getHasNextPage() {
+        return hasNextPage;
+    }
+
     public void loadCategoryAudiobooks(String categoryUrl, String name) {
         this.currentCategoryUrl = categoryUrl;
         this.categoryName.setValue(name);
+        this.nextPageUrl = null;
         isLoading.setValue(true);
         error.setValue(null);
+        hasNextPage.setValue(false);
 
         repository.getAudiobooksByCategory(categoryUrl, new AudiobookRepository.DataCallback<List<Audiobook>>() {
             @Override
             public void onSuccess(List<Audiobook> data) {
                 audiobooks.postValue(data);
                 isLoading.postValue(false);
+                // Check if there's a next page
+                String nextUrl = repository.getCategoryNextPageUrl();
+                hasNextPage.postValue(nextUrl != null && !nextUrl.isEmpty());
+                nextPageUrl = nextUrl;
             }
 
             @Override
@@ -61,6 +73,44 @@ public class CategoryAudiobooksViewModel extends ViewModel {
                 isLoading.postValue(false);
             }
         });
+    }
+
+    /**
+     * Load next page of category audiobooks (Older Posts)
+     */
+    public void loadNextPage() {
+        if (nextPageUrl != null && !nextPageUrl.isEmpty()) {
+            isLoading.setValue(true);
+            error.setValue(null);
+
+            repository.getCategoryAudiobooksPage(
+                    currentCategoryUrl,
+                    nextPageUrl,
+                    new AudiobookRepository.DataCallback<List<Audiobook>>() {
+                        @Override
+                        public void onSuccess(List<Audiobook> data) {
+                            audiobooks.postValue(data);
+                            isLoading.postValue(false);
+                            // Check for more pages
+                            String newNextUrl = repository.getCategoryNextPageUrl();
+                            hasNextPage.postValue(newNextUrl != null && !newNextUrl.isEmpty());
+                            nextPageUrl = newNextUrl;
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            error.postValue(e.getMessage());
+                            isLoading.postValue(false);
+                        }
+                    });
+        }
+    }
+
+    /**
+     * Check if next page is available
+     */
+    public boolean canLoadNextPage() {
+        return nextPageUrl != null && !nextPageUrl.isEmpty();
     }
 
     public void refresh() {

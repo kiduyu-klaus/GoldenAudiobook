@@ -29,6 +29,12 @@ public class WebDataSource {
     private static final String BASE_URL = "https://goldenaudiobook.net/";
     private static final int TIMEOUT = 30000;
 
+    // Pagination state
+    private int currentPage = 1;
+    private int totalPages = 1;
+    private String nextPageUrl = null;
+    private String previousPageUrl = null;
+
     private final ExecutorService executor;
     private final Handler mainHandler;
 
@@ -49,15 +55,31 @@ public class WebDataSource {
      * Fetch random audiobooks for home page
      */
     public void getRandomAudiobooks(Callback<List<Audiobook>> callback) {
+        getRandomAudiobooksPage(BASE_URL, callback);
+    }
+
+    /**
+     * Fetch random audiobooks with pagination
+     */
+    public void getRandomAudiobooksPage(String url, Callback<List<Audiobook>> callback) {
         executor.execute(() -> {
             try {
                 List<Audiobook> audiobooks = new ArrayList<>();
+                String newurl=url;
 
-                // Try to fetch from main page first
-                Document doc = Jsoup.connect(BASE_URL)
+
+                if(!newurl.contains("https")){ // Check if URL is absolute
+                    newurl = BASE_URL+"?_page="+(currentPage+1);
+                    Log.i(TAG, "getRandomAudiobooksPage: next "+newurl);
+                    currentPage++; //
+                }
+                Document doc = Jsoup.connect(newurl)
                         .timeout(TIMEOUT)
                         .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
                         .get();
+
+                // Parse pagination info
+                parseRandomPagination(doc);
 
                 // Parse posts - try multiple selectors
                 Elements posts = doc.select("div.pt-cv-content-item");
@@ -88,18 +110,152 @@ public class WebDataSource {
             }
         });
     }
+
     /**
-     * Fetch audiobooks by category
+     * Parse pagination info from random/home page
+     */
+    private void parseRandomPagination(Document doc) {
+        try {
+            // Parse total pages from pagination element
+            Element paginationElement = doc.selectFirst(".pt-cv-pagination.pt-cv-ajax.pagination");
+            if (paginationElement != null) {
+                String totalPagesStr = paginationElement.attr("data-totalpages");
+                try {
+                    totalPages = Integer.parseInt(totalPagesStr);
+                } catch (NumberFormatException e) {
+                    totalPages = 1;
+                }
+
+                Element currentPageElement =
+                        paginationElement.selectFirst("li.cv-pageitem-number.active a");
+
+                if (currentPageElement != null) {
+                    currentPage = Integer.parseInt(currentPageElement.text());
+                }
+
+                Log.i(TAG, "Current page: " + currentPage);
+
+                // Find next page URL
+                Element nextLink = paginationElement.selectFirst(".cv-pageitem-last a, .pt-cv-pageitem-last a");
+                if (nextLink != null) {
+                    Log.i(TAG, "next: "+nextLink);
+                    nextPageUrl = nextLink.attr("href");
+                } else {
+                    // Try next page link
+
+                        String nextPageUrl1 = BASE_URL+"?_page="+(currentPage+1);
+                        if(!nextPageUrl1.isEmpty()&&nextPageUrl1 != null){
+                            Log.i(TAG, "next: "+nextPageUrl);
+                            this.nextPageUrl = nextPageUrl1;
+
+                            nextPageUrl = nextPageUrl1;
+                        }
+                        else{
+                            this.nextPageUrl = nextPageUrl1;
+                            nextPageUrl = nextPageUrl1;
+                        }
+                        //this.
+
+
+                }
+
+                // Find previous page URL
+                Element prevLink = paginationElement.selectFirst(".cv-pageitem-first a, .pt-cv-pageitem-first a");
+                if (prevLink != null) {
+                    previousPageUrl = prevLink.attr("href");
+                } else {
+                    // For first page, previous URL should be same base
+                    if (currentPage == 1) {
+                        previousPageUrl = BASE_URL;
+                    }else{
+                        previousPageUrl = BASE_URL+"?_page="+(currentPage-1);
+                    }
+                }
+
+                Log.d(TAG, "Pagination: page " + currentPage + " of " + totalPages);
+                Log.d(TAG, "current page URL: " + nextPageUrl);
+                Log.d(TAG, "Next page URL: " + nextPageUrl);
+                Log.d(TAG, "Previous page URL: " + previousPageUrl);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing pagination", e);
+        }
+    }
+
+    /**
+     * Get current page number
+     */
+    public int getCurrentPage() {
+        return currentPage;
+    }
+
+    /**
+     * Get total pages
+     */
+    public int getTotalPages() {
+        return totalPages;
+    }
+
+    /**
+     * Check if next page exists
+     */
+    public boolean hasNextPage() {
+        return nextPageUrl != null && currentPage < totalPages;
+    }
+
+    /**
+     * Check if previous page exists
+     */
+    public boolean hasPreviousPage() {
+        return currentPage > 1;
+    }
+
+    /**
+     * Get URL for next page
+     */
+    public String getNextPageUrl() {
+        return nextPageUrl;
+    }
+
+    /**
+     * Get URL for previous page
+     */
+    public String getPreviousPageUrl() {
+        if (previousPageUrl != null) {
+            return previousPageUrl;
+        }
+        // Construct previous page URL if not found
+        if (currentPage > 1) {
+            if (currentPage == 2) {
+                return BASE_URL;
+            }
+            return BASE_URL + "page/" + (currentPage - 1) + "/";
+        }
+        return null;
+    }
+    /**
+     * Fetch audiobooks by category with pagination
      */
     public void getAudiobooksByCategory(String categoryUrl, Callback<List<Audiobook>> callback) {
+        getAudiobooksByCategoryPage(categoryUrl, null, callback);
+    }
+
+    /**
+     * Fetch audiobooks by category with specific page URL
+     */
+    public void getAudiobooksByCategoryPage(String categoryUrl, String pageUrl, Callback<List<Audiobook>> callback) {
         executor.execute(() -> {
             try {
                 List<Audiobook> audiobooks = new ArrayList<>();
+                String url = pageUrl != null ? pageUrl : categoryUrl;
 
-                Document doc = Jsoup.connect(categoryUrl)
+                Document doc = Jsoup.connect(url)
                         .timeout(TIMEOUT)
                         .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
                         .get();
+
+                // Parse pagination info
+                String nextPageUrl = parseCategoryPagination(doc);
 
                 // Updated selectors based on the HTML structure
                 Elements posts = doc.select("article[id^=post-]");
@@ -117,12 +273,74 @@ public class WebDataSource {
                     }
                 }
 
+                // Store the next page URL for this category
+                if (nextPageUrl != null) {
+                    this.nextPageUrl = nextPageUrl;
+                }
+
                 mainHandler.post(() -> callback.onSuccess(audiobooks));
             } catch (IOException e) {
                 Log.e(TAG, "Error fetching category audiobooks", e);
                 mainHandler.post(() -> callback.onError(e));
             }
         });
+    }
+
+    /**
+     * Parse pagination info from category page
+     * Returns the URL for the next page (Older Posts)
+     */
+    private String parseCategoryPagination(Document doc) {
+        try {
+            // Look for nav-previous link (Older Posts)
+            Element navPrevious = doc.selectFirst(".nav-previous a, .nav-previous");
+            if (navPrevious != null) {
+                Element link = navPrevious.selectFirst("a[href]");
+                if (link != null) {
+                    String href = link.attr("href");
+                    Log.d(TAG, "Found next page URL: " + href);
+                    return href;
+                }
+            }
+
+            // Also check for nav-links with older posts
+            Element olderPosts = doc.selectFirst(".nav-links a[rel=prev], .nav-links .nav-previous a");
+            if (olderPosts != null) {
+                String href = olderPosts.attr("href");
+                Log.d(TAG, "Found older posts URL: " + href);
+                return href;
+            }
+
+            // Try to find any pagination link that contains "page" in URL
+            Elements pageLinks = doc.select("a[href*='/page/']");
+            for (Element link : pageLinks) {
+                String href = link.attr("href");
+                if (href.contains("/page/")){
+                    // Extract page number
+                    Pattern pattern = Pattern.compile("/page/(\\d+)/");
+
+                    Matcher matcher = pattern.matcher(href);
+                    if (matcher.find()) {
+                        int pageNum = Integer.parseInt(matcher.group(1));
+                        // Return the first page link found (assuming ascending order)
+                        if (pageNum > 1) {
+                            Log.d(TAG, "Found page link: " + href);
+                            return href;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing category pagination", e);
+        }
+        return null;
+    }
+
+    /**
+     * Get the next page URL for categories
+     */
+    public String getCategoryNextPageUrl() {
+        return nextPageUrl;
     }
 
     /**

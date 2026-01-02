@@ -52,6 +52,56 @@ public class AudiobookRepository {
     }
 
     /**
+     * Get random audiobooks by page URL
+     */
+    public void getRandomAudiobooksPage(String url, DataCallback<List<Audiobook>> callback) {
+        webDataSource.getRandomAudiobooksPage(url, new WebDataSource.Callback<List<Audiobook>>() {
+            @Override
+            public void onSuccess(List<Audiobook> result) {
+                if (result != null) {
+                    callback.onSuccess(result);
+                } else {
+                    callback.onSuccess(new ArrayList<>());
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error getting random audiobooks page", e);
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Get home page pagination info
+     */
+    public boolean hasNextHomePage() {
+        return webDataSource.hasNextPage();
+    }
+
+    /**
+     * Get home page previous URL
+     */
+    public String getPreviousHomePageUrl() {
+        return webDataSource.getPreviousPageUrl();
+    }
+
+    /**
+     * Get home page current page
+     */
+    public int getCurrentHomePage() {
+        return webDataSource.getCurrentPage();
+    }
+
+    /**
+     * Get home page total pages
+     */
+    public int getTotalHomePages() {
+        return webDataSource.getTotalPages();
+    }
+
+    /**
      * Get audiobooks by category URL
      */
     public void getAudiobooksByCategory(String categoryUrl, DataCallback<List<Audiobook>> callback) {
@@ -71,6 +121,35 @@ public class AudiobookRepository {
                 callback.onError(e);
             }
         });
+    }
+
+    /**
+     * Get audiobooks by category with specific page URL
+     */
+    public void getCategoryAudiobooksPage(String categoryUrl, String pageUrl, DataCallback<List<Audiobook>> callback) {
+        webDataSource.getAudiobooksByCategoryPage(categoryUrl, pageUrl, new WebDataSource.Callback<List<Audiobook>>() {
+            @Override
+            public void onSuccess(List<Audiobook> result) {
+                if (result != null) {
+                    callback.onSuccess(result);
+                } else {
+                    callback.onSuccess(new ArrayList<>());
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error getting category audiobooks page", e);
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Get category next page URL
+     */
+    public String getCategoryNextPageUrl() {
+        return webDataSource.getCategoryNextPageUrl();
     }
 
     /**

@@ -55,6 +55,7 @@ public class CategoryAudiobooksFragment extends Fragment implements AudiobookAda
         setupToolbar();
         setupRecyclerView();
         setupSwipeRefresh();
+        setupPagination();
         observeViewModel();
 
         // Load data
@@ -81,6 +82,13 @@ public class CategoryAudiobooksFragment extends Fragment implements AudiobookAda
     private void setupSwipeRefresh() {
         binding.swipeRefresh.setOnRefreshListener(() -> {
             viewModel.refresh();
+        });
+    }
+
+    private void setupPagination() {
+        // Older Posts button click
+        binding.olderPostsButton.setOnClickListener(v -> {
+            viewModel.loadNextPage();
         });
     }
 
@@ -117,6 +125,17 @@ public class CategoryAudiobooksFragment extends Fragment implements AudiobookAda
                 //binding.toolbar.setTitle(name);
             } else {
                 binding.toolbar.setVisibility(View.GONE);
+            }
+        });
+
+        // Observe pagination state
+        viewModel.getHasNextPage().observe(getViewLifecycleOwner(), hasNext -> {
+            if (hasNext != null && hasNext) {
+                binding.paginationLayout.setVisibility(View.VISIBLE);
+                binding.olderPostsButton.setEnabled(true);
+                binding.olderPostsButton.setAlpha(1.0f);
+            } else {
+                binding.paginationLayout.setVisibility(View.GONE);
             }
         });
     }

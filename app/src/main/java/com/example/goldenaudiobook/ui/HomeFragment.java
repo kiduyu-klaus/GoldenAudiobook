@@ -42,6 +42,7 @@ public class HomeFragment extends Fragment implements AudiobookAdapter.OnAudiobo
 
         setupRecyclerView();
         setupSwipeRefresh();
+        setupPagination();
         observeViewModel();
 
         // Load data
@@ -59,7 +60,19 @@ public class HomeFragment extends Fragment implements AudiobookAdapter.OnAudiobo
 
     private void setupSwipeRefresh() {
         binding.swipeRefresh.setOnRefreshListener(() -> {
-            viewModel.refresh();
+            //viewModel.refresh();
+        });
+    }
+
+    private void setupPagination() {
+        // Previous button click
+        binding.previousButton.setOnClickListener(v -> {
+            viewModel.loadPreviousPage();
+        });
+
+        // Next button click
+        binding.nextButton.setOnClickListener(v -> {
+            viewModel.loadNextPage();
         });
     }
 
@@ -89,6 +102,49 @@ public class HomeFragment extends Fragment implements AudiobookAdapter.OnAudiobo
                 Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
             }
         });
+
+        // Observe pagination state
+        viewModel.getCurrentPage().observe(getViewLifecycleOwner(), currentPage -> {
+            updatePageIndicator();
+        });
+
+        viewModel.getTotalPages().observe(getViewLifecycleOwner(), totalPages -> {
+            updatePageIndicator();
+        });
+
+        viewModel.getHasNextPage().observe(getViewLifecycleOwner(), hasNext -> {
+            binding.nextButton.setEnabled(hasNext != null && hasNext);
+            binding.nextButton.setAlpha(hasNext != null && hasNext ? 1.0f : 0.5f);
+            updatePaginationVisibility();
+        });
+
+        viewModel.getHasPreviousPage().observe(getViewLifecycleOwner(), hasPrev -> {
+            binding.previousButton.setEnabled(hasPrev != null && hasPrev);
+            binding.previousButton.setAlpha(hasPrev != null && hasPrev ? 1.0f : 0.5f);
+            updatePaginationVisibility();
+        });
+    }
+
+    private void updatePageIndicator() {
+        Integer current = viewModel.getCurrentPage().getValue();
+        Integer total = viewModel.getTotalPages().getValue();
+        if (current != null && total != null) {
+            binding.pageIndicator.setText("Page " + current + " of " + total);
+        }
+    }
+
+    private void updatePaginationVisibility() {
+        Boolean hasNext = viewModel.getHasNextPage().getValue();
+        Boolean hasPrev = viewModel.getHasPreviousPage().getValue();
+        // Show pagination if there's more than 1 page total OR if we have pagination controls
+        Integer total = viewModel.getTotalPages().getValue();
+        if (total != null && total > 1) {
+            binding.paginationLayout.setVisibility(View.VISIBLE);
+        } else if (Boolean.TRUE.equals(hasNext) || Boolean.TRUE.equals(hasPrev)) {
+            binding.paginationLayout.setVisibility(View.VISIBLE);
+        } else {
+            binding.paginationLayout.setVisibility(View.GONE);
+        }
     }
 
     @Override
