@@ -401,26 +401,6 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        stopProgressUpdate();
 
-        // Release notification helper
-        if (notificationHelper != null) {
-            notificationHelper.release();
-            notificationHelper = null;
-        }
-
-        // Release media session
-        if (mediaSession != null) {
-            mediaSession.release();
-            mediaSession = null;
-        }
-
-        // Release player
-        if (player != null) {
-            player.release();
-            player = null;
-        }
-
-        binding = null;
     }
 }

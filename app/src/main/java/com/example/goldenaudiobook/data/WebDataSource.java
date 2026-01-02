@@ -176,7 +176,7 @@ public class WebDataSource {
         String imageurlhd="";
         Element titleElement = post.selectFirst(".pt-cv-title a");
         if (titleElement != null) {
-            String title = titleElement.text().trim();
+            String title = titleElement.text().trim().replace("Audiobook", "");
             String url = titleElement.attr("href");
             audiobook.setTitle(title);
             //imageurlhd=getImageUrlHd(url);
@@ -203,7 +203,13 @@ public class WebDataSource {
                 if (imageUrl.isEmpty()) {
                     imageUrl = imgElement.attr("src");
                 }
-                audiobook.setImageUrl(imageUrl);
+
+                if (imageUrl.contains("SL500")){
+                    Log.i(TAG, "contains SL500: ");
+                    audiobook.setImageUrl(removeDimensions(imageUrl));
+                } else {
+                    audiobook.setImageUrl(removeDimensions(imageUrl));
+                }
             }
         }
 
@@ -259,12 +265,13 @@ public class WebDataSource {
                     audiobook.setImageUrl(imageurlhd);
                 } else {
                     String src = imgElement.attr("data-src");
-                    Log.i(TAG, "parseAudiobookFromPost: " + src);
-                    if (src.isEmpty()) {
-                        src = imgElement.attr("data-src");
-                        Log.i(TAG, "parseAudiobookFromPost data-src: " + src);
+
+                    if (src.contains("SL500")){
+                        Log.i(TAG, "contains SL500: ");
+                        audiobook.setImageUrl(removeDimensions(src));
+                    } else {
+                        audiobook.setImageUrl(removeDimensions(src));
                     }
-                    audiobook.setImageUrl(src);
                 }
             }
 
@@ -298,7 +305,9 @@ public class WebDataSource {
         }
     }
 
-
+    public static String removeDimensions(String url) {
+        return url.replaceAll("-(\\d+)x(\\d+)(?=\\.[^.]+$)", "");
+    }
 
     /**
      * Fetch audiobook details from detail page
@@ -627,7 +636,7 @@ public class WebDataSource {
             }
 
             if (titleElement != null) {
-                String title = titleElement.text().trim();
+                String title = titleElement.text().trim().replace("Audiobook", "");
                 String url = titleElement.attr("href");
                 audiobook.setTitle(title);
                 audiobook.setUrl(url);
@@ -639,10 +648,16 @@ public class WebDataSource {
             if (imgElement != null) {
                 String imageUrl = imgElement.attr("data-src");
                 if (imageUrl.isEmpty()) {
+
                     imageUrl = imgElement.attr("src");
                 }
-                audiobook.setImageUrl(imageUrl);
-                Log.d(TAG, "Search result image: " + imageUrl);
+                if (imageUrl.contains("SL500")){
+                    Log.i(TAG, "contains SL500: ");
+                    audiobook.setImageUrl(removeDimensions(imageUrl));
+                } else {
+                    audiobook.setImageUrl(removeDimensions(imageUrl));
+                    Log.d(TAG, "Search result image: " + imageUrl);
+                }
             }
 
             // Parse categories from .post-meta-category a
