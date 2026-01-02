@@ -55,14 +55,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             Utils.openNotificationSettings(this);
         }
 
-// Check specific notification channel (for Media playback)
-        if (!Utils.isNotificationChannelEnabled(this, "media_playback_channel")) {
-            // Channel is disabled, prompt user
-            Utils.openNotificationSettings(this);
-        }
 
-// Open notification settings
-        Utils.openNotificationSettings(this);
+
+
 
         View layout = binding.getRoot();
         dialogMenu.showAtCenter(layout);

@@ -119,6 +119,7 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
             public void onStopTrackingTouch(SeekBar seekBar) {
                 if (player != null) {
                     player.seekTo(seekBar.getProgress());
+
                 }
                 isUserSeeking = false;
             }
@@ -183,21 +184,25 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     private void updateNotification() {
         if (notificationHelper != null && mediaSession != null) {
             Audiobook audiobook = viewModel.getAudiobook().getValue();
-            String title = "Audiobook";
-            String artist = "Unknown Author";
 
             if (audiobook != null) {
-                title = audiobook.getDisplayTitle();
-                artist = audiobook.getDisplayAuthor();
+                // Use the overloaded method with full audiobook object
+                NotificationHelper.showNotification(
+                        AudiobookDetailActivity.this,
+                        player,
+                        mediaSession,
+                        audiobook,
+                        player.isPlaying());
+            } else {
+                // Fallback to simple version
+                NotificationHelper.showNotification(
+                        AudiobookDetailActivity.this,
+                        player,
+                        mediaSession,
+                        "Audiobook",
+                        "Unknown Author",
+                        player.isPlaying());
             }
-
-            NotificationHelper.showNotification(
-                    AudiobookDetailActivity.this,
-                    player,
-                    mediaSession,
-                    title,
-                    artist,
-                    player.isPlaying());
         }
     }
 
