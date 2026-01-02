@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.motion.widget.MotionLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/motionLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/splash_background"
+    app:layoutDescription="@xml/splash_scene"
+    tools:context=".ui.SplashActivity">
+
+    <!-- Center Logo with Golden Glow Effect -->
+    <ImageView
+        android:id="@+id/ivLogo"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="@string/app_name"
+        app:tint="@color/gold_primary"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.35" />
+
+    <!-- App Name with Gradient-like Gold Color -->
+    <TextView
+        android:id="@+id/tvAppNamo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:fontFamily="sans-serif-medium"
+        android:text="@string/app_name"
+        android:textColor="@color/white_text"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.03"
+        android:shadowColor="@color/gold_accent"
+        android:shadowRadius="10"
+        android:shadowDx="0"
+        android:shadowDy="4"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ivLogo" />
+
+    <!-- Tagline with Accent Color -->
+    <TextView
+        android:id="@+id/tvTagline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:alpha="0.85"
+        android:text="@string/splash_tagline"
+        android:textColor="@color/gold_accent"
+        android:textSize="16sp"
+        android:fontFamily="sans-serif-light"
+        android:letterSpacing="0.1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvAppName" />
+
+    <!-- Decorative Golden Line -->
+    <View
+        android:id="@+id/goldenLine"
+        android:layout_width="80dp"
+        android:layout_height="3dp"
+        android:layout_marginTop="20dp"
+        android:background="@drawable/gradient_gold_line"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvTagline" />
+
+    <!-- Loading Indicator -->
+    <com.google.android.material.progressindicator.CircularProgressIndicator
+        android:id="@+id/progressIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="40dp"
+        android:indeterminate="true"
+        app:indicatorColor="@color/gold_primary"
+        app:indicatorSize="32dp"
+        app:trackThickness="3dp"
+        app:trackColor="@color/gold_primary_alpha"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/goldenLine" />
+
+</androidx.constraintlayout.motion.widget.MotionLayout>

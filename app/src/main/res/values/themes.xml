@@ -78,4 +78,10 @@
         <item name="android:paddingTop">12dp</item>
         <item name="android:paddingBottom">12dp</item>
     </style>
+
+    <style name="Theme.GoldenAudiobook.Splash" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+    </style>
 </resources>

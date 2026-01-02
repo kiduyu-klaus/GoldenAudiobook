@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MotionScene xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:motion="http://schemas.android.com/apk/res-auto">
+
+    <!-- Main Transition: From start state to end state over 2500ms -->
+    <Transition
+        motion:constraintSetEnd="@+id/end"
+        motion:constraintSetStart="@+id/start"
+        motion:duration="10000"
+        motion:autoTransition="animateToEnd">
+
+        <!-- Key Frames for sophisticated animation timing -->
+        <KeyFrameSet>
+
+            <!-- Logo Scale Up with Overshoot Bounce Effect -->
+            <!-- Starts at 50% scale at 20%, bounces to 110% at 40%, settles to 100% at 60% -->
+            <KeyAttribute
+                motion:motionTarget="@+id/ivLogo"
+                motion:framePosition="20"
+                android:scaleX="0.5"
+                android:scaleY="0.5"
+                android:alpha="0.0" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/ivLogo"
+                motion:framePosition="40"
+                android:scaleX="1.15"
+                android:scaleY="1.15"
+                android:alpha="1.0" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/ivLogo"
+                motion:framePosition="55"
+                android:scaleX="0.95"
+                android:scaleY="0.95" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/ivLogo"
+                motion:framePosition="70"
+                android:scaleX="1.02"
+                android:scaleY="1.02" />
+
+            <!-- App Name Fade In and Slide Up -->
+            <KeyAttribute
+                motion:motionTarget="@+id/tvAppName"
+                motion:framePosition="25"
+                android:alpha="0.0"
+                android:translationY="30dp" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/tvAppName"
+                motion:framePosition="45"
+                android:alpha="0.5"
+                android:translationY="15dp" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/tvAppName"
+                motion:framePosition="65"
+                android:alpha="1.0"
+                android:translationY="0dp" />
+
+            <!-- Tagline Fade In (slightly delayed) -->
+            <KeyAttribute
+                motion:motionTarget="@+id/tvTagline"
+                motion:framePosition="40"
+                android:alpha="0.0"
+                android:translationY="20dp" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/tvTagline"
+                motion:framePosition="55"
+                android:alpha="0.4" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/tvTagline"
+                motion:framePosition="75"
+                android:alpha="0.85"
+                android:translationY="0dp" />
+
+            <!-- Golden Line Scale In -->
+            <KeyAttribute
+                motion:motionTarget="@+id/goldenLine"
+                motion:framePosition="50"
+                android:scaleX="0.0"
+                android:alpha="0.0" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/goldenLine"
+                motion:framePosition="70"
+                android:scaleX="1.2"
+                android:alpha="0.7" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/goldenLine"
+                motion:framePosition="85"
+                android:scaleX="1.0"
+                android:alpha="1.0" />
+
+            <!-- Progress Indicator Fade In -->
+            <KeyAttribute
+                motion:motionTarget="@+id/progressIndicator"
+                motion:framePosition="60"
+                android:alpha="0.0" />
+
+            <KeyAttribute
+                motion:motionTarget="@+id/progressIndicator"
+                motion:framePosition="80"
+                android:alpha="1.0" />
+
+        </KeyFrameSet>
+    </Transition>
+
+    <!-- Start State: All elements hidden and scaled down -->
+    <ConstraintSet android:id="@+id/start">
+        <Constraint
+            android:id="@+id/ivLogo"
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:scaleX="0.5"
+            android:scaleY="0.5"
+            android:alpha="0.0"
+            motion:layout_constraintBottom_toBottomOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toTopOf="parent"
+            motion:layout_constraintVertical_bias="0.35" />
+
+        <Constraint
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:alpha="0.0"
+            android:translationY="30dp"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/ivLogo" />
+
+        <Constraint
+            android:id="@+id/tvTagline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:alpha="0.0"
+            android:translationY="20dp"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/tvAppName" />
+
+        <Constraint
+            android:id="@+id/goldenLine"
+            android:layout_width="80dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="20dp"
+            android:scaleX="0.0"
+            android:alpha="0.0"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/tvTagline" />
+
+        <Constraint
+            android:id="@+id/progressIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:alpha="0.0"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/goldenLine" />
+    </ConstraintSet>
+
+    <!-- End State: All elements visible at full size -->
+    <ConstraintSet android:id="@+id/end">
+        <Constraint
+            android:id="@+id/ivLogo"
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:scaleX="1.0"
+            android:scaleY="1.0"
+            android:alpha="1.0"
+            motion:layout_constraintBottom_toBottomOf="parent"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toTopOf="parent"
+            motion:layout_constraintVertical_bias="0.35" />
+
+        <Constraint
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:alpha="1.0"
+            android:translationY="0dp"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/ivLogo" />
+
+        <Constraint
+            android:id="@+id/tvTagline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:alpha="0.85"
+            android:translationY="0dp"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/tvAppName" />
+
+        <Constraint
+            android:id="@+id/goldenLine"
+            android:layout_width="80dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="20dp"
+            android:scaleX="1.0"
+            android:alpha="1.0"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/tvTagline" />
+
+        <Constraint
+            android:id="@+id/progressIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:alpha="1.0"
+            motion:layout_constraintEnd_toEndOf="parent"
+            motion:layout_constraintStart_toStartOf="parent"
+            motion:layout_constraintTop_toBottomOf="@id/goldenLine" />
+    </ConstraintSet>
+
+</MotionScene>
