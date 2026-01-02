@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -51,10 +52,12 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 
     private final Handler progressHandler = new Handler(Looper.getMainLooper());
     private boolean isUserSeeking = false;
+    private boolean isUpdatingProgress = false;
 
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
+            Log.d(TAG, "Service connected");
             AudioPlaybackService.AudioServiceBinder binder = (AudioPlaybackService.AudioServiceBinder) service;
             playbackService = binder.getService();
             serviceBound = true;
@@ -67,13 +70,72 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
                 if (currentBook != null) {
                     viewModel.setCurrentAudiobook(currentBook);
                 }
-                viewModel.setIsPlaying(playbackService.isPlaying());
+                boolean isPlaying = playbackService.isPlaying();
+                viewModel.setIsPlaying(isPlaying);
                 viewModel.setCurrentTrackIndex(playbackService.getCurrentTrackIndex());
+                viewModel.setDuration(playbackService.getDuration());
+                viewModel.setCurrentPosition(playbackService.getCurrentPosition());
+
+                // Update play/pause buttons immediately
+                updatePlayPauseButtons(isPlaying);
+
+                // Add playback state listener to sync with service
+                playbackService.setPlaybackStateListener(new AudioPlaybackService.PlaybackStateListener() {
+                    @Override
+                    public void onPlaybackStateChanged(boolean isPlaying) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Log.d(TAG, "Playback state changed: " + isPlaying);
+                                viewModel.setIsPlaying(isPlaying);
+                                updatePlayPauseButtons(isPlaying);
+
+                                // Start or stop progress updates
+                                if (isPlaying) {
+                                    startProgressUpdate();
+                                }
+                            });
+                        }
+                    }
+
+                    @Override
+                    public void onMediaItemTransition(int currentIndex) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Log.d(TAG, "Media item transition: " + currentIndex);
+                                viewModel.setCurrentTrackIndex(currentIndex);
+                                playlistAdapter.setSelectedPosition(currentIndex);
+                                updateExpandedPlayerSeekBar();
+                            });
+                        }
+                    }
+
+                    @Override
+                    public void onPlayerError(String error) {
+                        // Handle error silently in floating player
+                        Log.e(TAG, "Player error: " + error);
+                    }
+
+                    @Override
+                    public void onPlaybackPositionChanged(long position, long duration) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                viewModel.setCurrentPosition(position);
+                                viewModel.setDuration(duration);
+
+                                // Update UI directly
+                                if (!isUserSeeking) {
+                                    updateProgress(position, duration);
+                                }
+                            });
+                        }
+                    }
+                });
             }
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            Log.d(TAG, "Service disconnected");
             serviceBound = false;
             playbackService = null;
         }
@@ -113,6 +175,7 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 
         // Play/Pause button
         miniBinding.playPauseButton.setOnClickListener(v -> {
+            Log.d(TAG, "Mini player play/pause clicked");
             viewModel.togglePlayPause();
         });
 
@@ -140,6 +203,7 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 
         // Playback controls
         expandedView.findViewById(R.id.play_pause_button_large).setOnClickListener(v -> {
+            Log.d(TAG, "Expanded player play/pause clicked");
             viewModel.togglePlayPause();
         });
 
@@ -203,7 +267,11 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
     }
 
     private void bindPlaybackService() {
+        // Start the service first to ensure it's running
         Intent serviceIntent = new Intent(requireContext(), AudioPlaybackService.class);
+        requireContext().startService(serviceIntent);
+
+        // Then bind to it
         requireContext().bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
@@ -230,7 +298,9 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 
         // Observe playing state
         viewModel.getIsPlaying().observe(getViewLifecycleOwner(), isPlaying -> {
-            updatePlayPauseButtons(isPlaying);
+            if (isPlaying != null) {
+                updatePlayPauseButtons(isPlaying);
+            }
         });
 
         // Observe track list
@@ -242,8 +312,11 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
 
         // Observe position for progress updates
         viewModel.getCurrentPosition().observe(getViewLifecycleOwner(), position -> {
-            if (!isUserSeeking) {
-                updateProgress(position);
+            Long duration = viewModel.getDuration().getValue();
+            if (position != null && duration != null) {
+                if (!isUserSeeking) {
+                    updateProgress(position, duration);
+                }
             }
         });
 
@@ -296,6 +369,8 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
     }
 
     private void updatePlayPauseButtons(boolean isPlaying) {
+        Log.d(TAG, "Updating play/pause buttons: " + isPlaying);
+
         // Mini player button
         miniBinding.playPauseButton.setImageResource(
                 isPlaying ? R.drawable.ic_pause : R.drawable.ic_play
@@ -310,25 +385,69 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
         }
     }
 
-    private void updateProgress(Long position) {
-        if (position != null) {
+    private void updateProgress(Long position, Long duration) {
+        if (position == null || duration == null) return;
+
+        // Update mini player progress
+        if (miniBinding.playbackProgress != null) {
             miniBinding.playbackProgress.setMax(100);
-            Long duration = viewModel.getDuration().getValue();
-            if (duration != null && duration > 0) {
+            if (duration > 0) {
                 int progress = (int) ((position * 100) / duration);
                 miniBinding.playbackProgress.setProgress(progress);
             }
+        }
 
-            SeekBar seekBar = expandedView.findViewById(R.id.seek_bar);
-            if (seekBar != null && !isUserSeeking) {
+        // Update expanded player SeekBar
+        SeekBar seekBar = expandedView.findViewById(R.id.seek_bar);
+        if (seekBar != null && !isUserSeeking) {
+            if (duration > 0) {
+                seekBar.setMax(duration.intValue());
                 seekBar.setProgress(position.intValue());
             }
+        }
 
-            TextView currentTime = expandedView.findViewById(R.id.current_time);
-            if (currentTime != null) {
-                currentTime.setText(formatTime(position));
+        // Update current time display
+        TextView currentTime = expandedView.findViewById(R.id.current_time);
+        if (currentTime != null) {
+            currentTime.setText(formatTime(position));
+        }
+    }
+
+    private void updateExpandedPlayerSeekBar() {
+        if (playbackService != null) {
+            Long duration = viewModel.getDuration().getValue();
+            Long position = viewModel.getCurrentPosition().getValue();
+            if (duration != null && duration > 0 && position != null) {
+                updateProgress(position, duration);
             }
         }
+    }
+
+    private void startProgressUpdate() {
+        if (isUpdatingProgress) return;
+        isUpdatingProgress = true;
+
+        progressHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!serviceBound || playbackService == null) {
+                    isUpdatingProgress = false;
+                    return;
+                }
+
+                // Update UI from service
+                long duration = playbackService.getDuration();
+                long position = playbackService.getCurrentPosition();
+                updateProgress(position, duration);
+
+                // Continue updates while playing
+                if (playbackService.isPlaying()) {
+                    progressHandler.postDelayed(this, 100);
+                } else {
+                    isUpdatingProgress = false;
+                }
+            }
+        }, 100);
     }
 
     private String formatTime(long millis) {
@@ -346,9 +465,15 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
     }
 
     @Override
+    public void onTrackClick(AudioTrack track, int position) {
+        viewModel.playTrack(position);
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         progressHandler.removeCallbacksAndMessages(null);
+        isUpdatingProgress = false;
     }
 
     @Override
@@ -363,11 +488,36 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
     @Override
     public void onPause() {
         super.onPause();
+        // Save current playback position before pausing
+        if (playbackService != null && serviceBound) {
+            viewModel.setCurrentPosition(playbackService.getCurrentPosition());
+            viewModel.setIsPlaying(playbackService.isPlaying());
+        }
         viewModel.saveState();
     }
 
     @Override
-    public void onTrackClick(AudioTrack track, int position) {
-        viewModel.playTrack(position);
+    public void onResume() {
+        super.onResume();
+        // Sync with service when fragment resumes
+        if (playbackService != null && serviceBound) {
+            Audiobook currentBook = playbackService.getCurrentAudiobook();
+            if (currentBook != null) {
+                viewModel.setCurrentAudiobook(currentBook);
+            }
+            boolean isPlaying = playbackService.isPlaying();
+            viewModel.setIsPlaying(isPlaying);
+            viewModel.setCurrentTrackIndex(playbackService.getCurrentTrackIndex());
+            viewModel.setCurrentPosition(playbackService.getCurrentPosition());
+            viewModel.setDuration(playbackService.getDuration());
+
+            // Update play/pause buttons
+            updatePlayPauseButtons(isPlaying);
+
+            // Update progress
+            long duration = playbackService.getDuration();
+            long position = playbackService.getCurrentPosition();
+            updateProgress(position, duration);
+        }
     }
 }

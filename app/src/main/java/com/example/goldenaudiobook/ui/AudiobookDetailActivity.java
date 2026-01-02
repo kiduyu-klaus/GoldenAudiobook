@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.SeekBar;
 import android.widget.Toast;
@@ -38,6 +39,8 @@ import java.util.List;
  */
 @UnstableApi public class AudiobookDetailActivity extends AppCompatActivity implements AudioTrackAdapter.OnTrackClickListener {
 
+    private static final String TAG = "AudiobookDetailActivity";
+
     private ActivityAudiobookDetailBinding binding;
     private AudiobookDetailViewModel viewModel;
     private FloatingPlayerViewModel floatingPlayerViewModel;
@@ -47,10 +50,12 @@ import java.util.List;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean isUserSeeking = false;
     private boolean isResumeFromNotification = false;
+    private boolean isUpdatingProgress = false;
 
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
+            Log.d(TAG, "Service connected");
             AudioPlaybackService.AudioServiceBinder binder = (AudioPlaybackService.AudioServiceBinder) service;
             playbackService = binder.getService();
             serviceBound = true;
@@ -60,24 +65,33 @@ import java.util.List;
                 @Override
                 public void onPlaybackStateChanged(boolean isPlaying) {
                     runOnUiThread(() -> {
+                        Log.d(TAG, "Playback state changed: isPlaying=" + isPlaying);
                         updatePlayPauseButton(isPlaying);
                         viewModel.setPlaying(isPlaying);
                         floatingPlayerViewModel.setIsPlaying(isPlaying);
+
+                        // Start or stop progress updates based on playing state
+                        if (isPlaying) {
+                            startProgressUpdate();
+                        }
                     });
                 }
 
                 @Override
                 public void onMediaItemTransition(int currentIndex) {
                     runOnUiThread(() -> {
+                        Log.d(TAG, "Media item transition: index=" + currentIndex);
                         trackAdapter.setSelectedPosition(currentIndex);
                         viewModel.setCurrentTrack(currentIndex);
                         floatingPlayerViewModel.setCurrentTrackIndex(currentIndex);
+                        updatePlayerUI();
                     });
                 }
 
                 @Override
                 public void onPlayerError(String error) {
                     runOnUiThread(() -> {
+                        Log.e(TAG, "Player error: " + error);
                         Toast.makeText(AudiobookDetailActivity.this,
                                 "Error playing audio: " + error, Toast.LENGTH_LONG).show();
                     });
@@ -85,9 +99,18 @@ import java.util.List;
 
                 @Override
                 public void onPlaybackPositionChanged(long position, long duration) {
-                    // Update UI periodically
+                    // This is called by the service periodically, use it to update UI
+                    runOnUiThread(() -> {
+                        if (!isUserSeeking) {
+                            updateSeekBar(position, duration);
+                            updateTimeDisplay(position, duration);
+                        }
+                    });
                 }
             });
+
+            // Immediately update UI with current service state
+            updateUIFromService();
 
             // Check if we're resuming from notification click
             if (isResumeFromNotification) {
@@ -99,12 +122,14 @@ import java.util.List;
                     Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
                     int trackIndex = currentIndex != null ? currentIndex : 0;
                     playbackService.loadAudiobook(audiobook, trackIndex);
+                    Log.d(TAG, "Loaded audiobook: " + audiobook.getTitle() + " at track: " + trackIndex);
                 }
             }
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            Log.d(TAG, "Service disconnected");
             serviceBound = false;
             playbackService = null;
         }
@@ -113,6 +138,7 @@ import java.util.List;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d(TAG, "onCreate");
         binding = ActivityAudiobookDetailBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -125,6 +151,7 @@ import java.util.List;
 
         // Check if this is a notification click resume
         isResumeFromNotification = getIntent().getBooleanExtra("resume_from_notification", false);
+        Log.d(TAG, "Resume from notification: " + isResumeFromNotification);
 
         setupToolbar();
         setupRecyclerView();
@@ -165,6 +192,8 @@ import java.util.List;
             Integer trackIndex = getIntent().getIntExtra("track_index", 0);
             long position = getIntent().getLongExtra("playback_position", 0);
 
+            Log.d(TAG, "Resuming from notification - track: " + trackIndex + ", position: " + position);
+
             playbackService.loadAudiobook(audiobook, trackIndex);
             if (position > 0) {
                 playbackService.seekTo(position);
@@ -198,7 +227,10 @@ import java.util.List;
 
     private void setupPlayerControls() {
         // Play/Pause button
-        binding.playPauseButton.setOnClickListener(v -> togglePlayPause());
+        binding.playPauseButton.setOnClickListener(v -> {
+            Log.d(TAG, "Play/Pause button clicked, serviceBound=" + serviceBound);
+            togglePlayPause();
+        });
 
         // Previous button
         binding.previousButton.setOnClickListener(v -> {
@@ -287,7 +319,9 @@ import java.util.List;
         });
 
         viewModel.getIsPlaying().observe(this, isPlaying -> {
-            updatePlayPauseButton(isPlaying);
+            if (isPlaying != null) {
+                updatePlayPauseButton(isPlaying);
+            }
         });
 
         viewModel.getCurrentTrackIndex().observe(this, index -> {
@@ -304,6 +338,7 @@ import java.util.List;
         // Sync playing state from floating player
         floatingPlayerViewModel.getIsPlaying().observe(this, isPlaying -> {
             if (isPlaying != null && serviceBound && playbackService != null) {
+                Log.d(TAG, "Floating player isPlaying changed: " + isPlaying);
                 if (isPlaying && !playbackService.isPlaying()) {
                     playbackService.play();
                 } else if (!isPlaying && playbackService.isPlaying()) {
@@ -322,7 +357,9 @@ import java.util.List;
                 if (currentBook != null && floatingBook != null &&
                         currentBook.getUrl() != null && floatingBook.getUrl() != null &&
                         currentBook.getUrl().equals(floatingBook.getUrl())) {
-                    if (index != viewModel.getCurrentTrackIndex().getValue()) {
+                    Integer currentIndex = viewModel.getCurrentTrackIndex().getValue();
+                    if (currentIndex == null || index != currentIndex.intValue()) {
+                        Log.d(TAG, "Syncing track index from floating player: " + index);
                         playbackService.playTrack(index);
                     }
                 }
@@ -395,14 +432,21 @@ import java.util.List;
             }
             trackAdapter.submitList(tracks);
             binding.playerCard.setVisibility(View.VISIBLE);
+
+            // Show the player controls
+            binding.playerCard.setVisibility(View.VISIBLE);
+            binding.seekBar.setVisibility(View.VISIBLE);
         } else {
             binding.playerCard.setVisibility(View.GONE);
         }
     }
 
     private void togglePlayPause() {
+        Log.d(TAG, "togglePlayPause called, serviceBound=" + serviceBound + ", playbackService=" + playbackService);
         if (serviceBound && playbackService != null) {
             playbackService.togglePlayPause();
+        } else {
+            Log.e(TAG, "Cannot toggle play/pause - service not bound");
         }
     }
 
@@ -414,21 +458,19 @@ import java.util.List;
         }
     }
 
+    private void updateUIFromService() {
+        if (serviceBound && playbackService != null) {
+            updatePlayerUI();
+        }
+    }
+
     private void updatePlayerUI() {
         if (serviceBound && playbackService != null) {
             long duration = playbackService.getDuration();
             long position = playbackService.getCurrentPosition();
 
-            if (duration > 0) {
-                binding.seekBar.setMax((int) duration);
-                binding.seekBar.setProgress((int) position);
-                viewModel.setDuration(duration);
-                floatingPlayerViewModel.setDuration(duration);
-            }
-
-            binding.currentTime.setText(formatTime(position));
-            binding.totalTime.setText(formatTime(duration));
-            floatingPlayerViewModel.setCurrentPosition(position);
+            updateSeekBar(position, duration);
+            updateTimeDisplay(position, duration);
 
             // Update navigation buttons
             binding.previousButton.setEnabled(viewModel.hasPreviousTrack());
@@ -439,14 +481,41 @@ import java.util.List;
         }
     }
 
+    private void updateSeekBar(long position, long duration) {
+        if (duration > 0) {
+            binding.seekBar.setMax((int) duration);
+            if (!isUserSeeking) {
+                binding.seekBar.setProgress((int) position);
+            }
+        }
+    }
+
+    private void updateTimeDisplay(long position, long duration) {
+        binding.currentTime.setText(formatTime(position));
+        binding.totalTime.setText(formatTime(duration));
+    }
+
     private void startProgressUpdate() {
+        if (isUpdatingProgress) {
+            return;
+        }
+        isUpdatingProgress = true;
+
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (serviceBound && playbackService != null &&
-                        playbackService.isPlaying() && !isUserSeeking) {
-                    updatePlayerUI();
+                if (!serviceBound || playbackService == null) {
+                    isUpdatingProgress = false;
+                    return;
+                }
+
+                updatePlayerUI();
+
+                // Continue updates while playing
+                if (playbackService.isPlaying()) {
                     handler.postDelayed(this, 100);
+                } else {
+                    isUpdatingProgress = false;
                 }
             }
         }, 100);
@@ -454,6 +523,7 @@ import java.util.List;
 
     private void stopProgressUpdate() {
         handler.removeCallbacksAndMessages(null);
+        isUpdatingProgress = false;
     }
 
     private String formatTime(long millis) {
@@ -496,8 +566,9 @@ import java.util.List;
     @Override
     protected void onStart() {
         super.onStart();
+        Log.d(TAG, "onStart");
 
-        // Start progress updates when activity is visible
+        // Start progress updates if already playing
         if (serviceBound && playbackService != null && playbackService.isPlaying()) {
             startProgressUpdate();
         }
@@ -506,12 +577,14 @@ import java.util.List;
     @Override
     protected void onStop() {
         super.onStop();
+        Log.d(TAG, "onStop");
         stopProgressUpdate();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        Log.d(TAG, "onPause");
         // Save playback state when activity goes to background
         if (floatingPlayerViewModel != null) {
             floatingPlayerViewModel.saveState();
@@ -521,6 +594,7 @@ import java.util.List;
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.d(TAG, "onDestroy");
 
         // Unbind from service
         if (serviceBound) {
@@ -530,10 +604,5 @@ import java.util.List;
             unbindService(serviceConnection);
             serviceBound = false;
         }
-    }
-
-    @Override
-    public void onPointerCaptureChanged(boolean hasCapture) {
-        super.onPointerCaptureChanged(hasCapture);
     }
 }
