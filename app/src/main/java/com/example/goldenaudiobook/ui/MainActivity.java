@@ -2,15 +2,18 @@ package com.example.goldenaudiobook.ui;
 
 import static com.example.goldenaudiobook.util.Utils.getDialogPowerMenu;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.Window;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
@@ -19,6 +22,7 @@ import androidx.navigation.ui.NavigationUI;
 
 import com.example.goldenaudiobook.R;
 import com.example.goldenaudiobook.databinding.ActivityMainBinding;
+import com.example.goldenaudiobook.util.Utils;
 import com.google.android.material.navigation.NavigationView;
 import com.skydoves.powermenu.PowerMenu;
 
@@ -31,6 +35,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private AppBarConfiguration appBarConfiguration;
     private NavController navController;
     private PowerMenu dialogMenu;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -42,9 +47,27 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         initializeDialogMenu();
 
+        // Check if notifications are enabled
+        if (Utils.areNotificationsEnabled(this)) {
+            // Notifications are enabled
+        } else {
+            // Show dialog or alert to enable notifications
+            Utils.openNotificationSettings(this);
+        }
+
+// Check specific notification channel (for Media playback)
+        if (!Utils.isNotificationChannelEnabled(this, "media_playback_channel")) {
+            // Channel is disabled, prompt user
+            Utils.openNotificationSettings(this);
+        }
+
+// Open notification settings
+        Utils.openNotificationSettings(this);
+
         View layout = binding.getRoot();
         dialogMenu.showAtCenter(layout);
     }
+
     private void initializeDialogMenu() {
         Log.i("initializeDialogMenu", "initializeDialogMenu: ");
         dialogMenu = getDialogPowerMenu(this, this);
@@ -62,8 +85,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     dialogMenu.dismiss();
                 });
     }
+
     private void setupToolbar() {
         setSupportActionBar(binding.toolbar);
+        // Set navigation bar color
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Window window = getWindow();
+            window.setNavigationBarColor(ContextCompat.getColor(this, R.color.primary));
+        }
     }
 
     private void setupNavigation() {

@@ -44,9 +44,11 @@
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/nav_view"
         android:layout_width="wrap_content"
+        android:theme="@style/ThemeOverlay.Material3.Dark.ActionBar"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:fitsSystemWindows="true"
+        android:layout_marginTop="?attr/actionBarSize"
         app:headerLayout="@layout/nav_header"
         app:menu="@menu/drawer_menu" />
 
