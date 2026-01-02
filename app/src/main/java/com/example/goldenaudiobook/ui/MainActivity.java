@@ -87,6 +87,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             Window window = getWindow();
             window.setNavigationBarColor(ContextCompat.getColor(this, R.color.primary));
+            getWindow().setNavigationBarColor(
+                    ContextCompat.getColor(this, R.color.primary)
+            );
+
         }
     }
 

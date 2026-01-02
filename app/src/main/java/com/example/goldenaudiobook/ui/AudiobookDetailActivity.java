@@ -10,6 +10,7 @@ import android.widget.Toast;
 
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
@@ -76,6 +77,10 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setDisplayShowHomeEnabled(true);
         }
+        getWindow().setNavigationBarColor(
+                ContextCompat.getColor(this, R.color.primary)
+        );
+
         binding.toolbar.setNavigationOnClickListener(v -> onBackPressed());
     }
 
@@ -140,9 +145,9 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
 
         player = new androidx.media3.exoplayer.ExoPlayer.Builder(this).build();
 
-        // Initialize MediaSession with a unique ID
+        // Initialize MediaSession with a unique ID based on activity instance
         mediaSession = new MediaSession.Builder(this, player)
-                .setId("audiobook_playback_session") // Add unique session ID
+                .setId("audiobook_playback_" + System.currentTimeMillis()) // Use timestamp for uniqueness
                 .build();
 
         player.addListener(new Player.Listener() {
@@ -410,23 +415,9 @@ public class AudiobookDetailActivity extends AppCompatActivity implements AudioT
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        stopProgressUpdate();
+        //stopProgressUpdate();
 
-        // Release MediaSession
-        if (mediaSession != null) {
-            mediaSession.release();
-            mediaSession = null;
-        }
 
-        if (player != null) {
-            player.release();
-            player = null;
-        }
-
-        if (notificationHelper != null) {
-            notificationHelper = null;
-        }
-
-        binding = null;
+        //binding = null;
     }
 }

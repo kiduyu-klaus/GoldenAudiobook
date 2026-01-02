@@ -313,7 +313,14 @@ public class WebDataSource {
                 // Parse title
                 Element titleElement = doc.selectFirst("h1.title-page, h1.entry-title, .post-single h1");
                 if (titleElement != null) {
-                    audiobook.setTitle(titleElement.text().trim());
+                    //Chris Wooding – The Ember Blade Audiobook
+                    Log.i(TAG, "getAudiobookDetails: "+titleElement.text().trim());
+                    String[] titleauthor = titleElement.text().trim().split("–");
+                    String title = titleauthor[1].trim();
+                    String author = titleauthor[0].trim();
+
+                    audiobook.setTitle(title.replace("Audiobook","").trim());
+                    audiobook.setAuthor(author.trim());
                 }
 
                 // Parse image
@@ -381,10 +388,10 @@ public class WebDataSource {
                 }
 
                 // Parse author
-                Element authorElement = doc.selectFirst(".post-meta a[rel=author], .author-name");
-                if (authorElement != null) {
-                    audiobook.setAuthor(authorElement.text().trim());
-                }
+//                Element authorElement = doc.selectFirst(".post-meta a[rel=author], .author-name");
+//                if (authorElement != null) {
+//                    audiobook.setAuthor(authorElement.text().trim());
+//                }
 
                 // Parse date
                 Element dateElement = doc.selectFirst(".entry-date, time[datetime]");
