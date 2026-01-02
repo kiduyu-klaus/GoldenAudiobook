@@ -111,8 +111,12 @@ public class AudioTrackAdapter extends ListAdapter<AudioTrack, AudioTrackAdapter
                 int position = getAdapterPosition();
                 if (listener != null) {
                     listener.onTrackClick(track, position);
+                    setSelectedPosition(position);
+                    binding.getRoot().setBackgroundResource(R.drawable.bg_selected_track);
                 } else if (positionListener != null) {
                     positionListener.onTrackPositionClick(position);
+                    binding.getRoot().setBackgroundResource(R.drawable.bg_selected_track);
+
                 }
             });
         }

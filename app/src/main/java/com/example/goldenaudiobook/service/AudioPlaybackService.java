@@ -101,7 +101,7 @@ public class AudioPlaybackService extends Service {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 Log.d(TAG, "Playback state changed: " + playbackState);
-                
+
                 if (playbackState == Player.STATE_ENDED) {
                     Log.d(TAG, "Playback ended");
                 }
@@ -163,7 +163,7 @@ public class AudioPlaybackService extends Service {
             if (intent.hasExtra(EXTRA_AUDIOBOOK_URL)) {
                 String url = intent.getStringExtra(EXTRA_AUDIOBOOK_URL);
                 String title = intent.getStringExtra(EXTRA_AUDIOBOOK_TITLE);
-                
+
                 if (currentAudiobook == null || !url.equals(currentAudiobook.getUrl())) {
                     Log.d(TAG, "Loading new audiobook: " + title);
                 }
@@ -301,7 +301,7 @@ public class AudioPlaybackService extends Service {
     public void setAudiobook(Audiobook audiobook) {
         this.currentAudiobook = audiobook;
         this.currentTrackIndex = 0;
-        
+
         if (notificationHelper != null) {
             notificationHelper.updateAudiobook(audiobook);
         }
@@ -324,7 +324,7 @@ public class AudioPlaybackService extends Service {
                 String trackName = audiobook.getTrackNames() != null && i < audiobook.getTrackNames().size()
                         ? audiobook.getTrackNames().get(i)
                         : "Track " + (i + 1);
-                
+
                 MediaItem mediaItem = new MediaItem.Builder()
                         .setUri(Uri.parse(audioUrl))
                         .setMediaId(audioUrl)
@@ -446,13 +446,24 @@ public class AudioPlaybackService extends Service {
             player.stop();
             player.clearMediaItems();
         }
-        
+
         if (notificationHelper != null) {
             notificationHelper.dismissNotification();
         }
-        
+
         stopForeground(true);
         stopSelf();
+    }
+    public void play() {
+        if (player != null) {
+            player.play();
+        }
+    }
+
+    public void pause() {
+        if (player != null) {
+            player.pause();
+        }
     }
 
     /**

@@ -122,11 +122,11 @@ public class NotificationHelper {
                         @Override
                         public PendingIntent createCurrentContentIntent(Player player) {
                             Intent intent = new Intent(context, AudiobookDetailActivity.class);
-                            
+
                             // Add NEW_TASK flag to allow launching from notification
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                            
+
                             // Pass the audiobook URL and title to open the correct audiobook
                             if (currentAudiobook != null) {
                                 if (currentAudiobook.getUrl() != null && !currentAudiobook.getUrl().isEmpty()) {
@@ -136,21 +136,33 @@ public class NotificationHelper {
                                     intent.putExtra("audiobook_title", currentAudiobook.getTitle());
                                 }
                             }
-                            
+
+                            // Pass playback state for resume functionality
+                            intent.putExtra("resume_from_notification", true);
+
+                            // Get current playback info from the service via the player
+                            int currentTrackIndex = player.getCurrentMediaItemIndex();
+                            long currentPosition = player.getCurrentPosition();
+                            boolean isPlaying = player.isPlaying();
+
+                            intent.putExtra("track_index", currentTrackIndex);
+                            intent.putExtra("playback_position", currentPosition);
+                            intent.putExtra("was_playing", isPlaying);
+
                             // Use FLAG_UPDATE_CURRENT to update intent with latest audiobook info
                             // Use FLAG_IMMUTABLE for Android 12+ compatibility
                             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                 flags |= PendingIntent.FLAG_IMMUTABLE;
                             }
-                            
+
                             // Use a unique request code based on audiobook URL to ensure
                             // each audiobook has its own PendingIntent
                             int requestCode = NOTIFICATION_ID;
                             if (currentAudiobook != null && currentAudiobook.getUrl() != null) {
                                 requestCode = currentAudiobook.getUrl().hashCode();
                             }
-                            
+
                             return PendingIntent.getActivity(
                                     context,
                                     requestCode,

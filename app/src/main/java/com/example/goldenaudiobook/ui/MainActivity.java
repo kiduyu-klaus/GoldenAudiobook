@@ -13,11 +13,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -35,7 +37,7 @@ import com.skydoves.powermenu.PowerMenu;
  * Main Activity hosting the navigation graph and drawer
  * Also hosts the FloatingPlayerFragment for persistent audio playback
  */
-public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
+@UnstableApi public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
     private ActivityMainBinding binding;
     private AppBarConfiguration appBarConfiguration;
@@ -137,7 +139,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    private void setupFloatingPlayer() {
+    @OptIn(markerClass = UnstableApi.class) private void setupFloatingPlayer() {
         // Initialize ViewModel
         floatingPlayerViewModel = new ViewModelProvider(this,
                 new FloatingPlayerViewModel.Factory(getApplication()))
@@ -209,7 +211,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    @Override
+    @OptIn(markerClass = UnstableApi.class) @Override
     protected void onPause() {
         super.onPause();
         // Save playback state when app goes to background

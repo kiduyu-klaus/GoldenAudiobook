@@ -145,7 +145,7 @@ import java.util.HashMap;
                         trackNames.append("|@@|");
                     }
                     audioUrls.append(tracks.get(i).getUrl());
-                    trackNames.append(tracks.get(i).getTrackNumber());
+                    trackNames.append(tracks.get(i).getTitle());
                 }
                 prefs.edit()
                         .putString(KEY_AUDIO_URLS, audioUrls.toString())
@@ -261,6 +261,61 @@ import java.util.HashMap;
         clearState();
     }
 
+    /**
+     * Resume playback from saved state
+     */
+    public void resumePlayback() {
+        Audiobook book = currentAudiobook.getValue();
+        if (book != null && book.getAudioUrls() != null && !book.getAudioUrls().isEmpty() && playbackService != null && serviceBound) {
+            Integer trackIndex = currentTrackIndex.getValue();
+            Long position = currentPosition.getValue();
+            int index = trackIndex != null ? trackIndex : 0;
+            long pos = position != null ? position : 0;
+
+            playbackService.loadAudiobook(book, index);
+            if (pos > 0) {
+                playbackService.seekTo(pos);
+            }
+            playbackService.playTrack(trackIndex);
+        }
+    }
+
+    /**
+     * Check if the given audiobook matches the current playing audiobook
+     */
+    public boolean isCurrentAudiobook(Audiobook audiobook) {
+        if (audiobook == null || currentAudiobook.getValue() == null) {
+            return false;
+        }
+        String currentUrl = currentAudiobook.getValue().getUrl();
+        String newUrl = audiobook.getUrl();
+        return currentUrl != null && newUrl != null && currentUrl.equals(newUrl);
+    }
+
+    /**
+     * Get the current track index, returns 0 if null
+     */
+    public int getCurrentTrackIndexSafe() {
+        Integer index = currentTrackIndex.getValue();
+        return index != null ? index : 0;
+    }
+
+    /**
+     * Get the current position, returns 0 if null
+     */
+    public long getCurrentPositionSafe() {
+        Long position = currentPosition.getValue();
+        return position != null ? position : 0L;
+    }
+
+    /**
+     * Check if playback was playing before
+     */
+    public boolean wasPlaying() {
+        Boolean playing = isPlaying.getValue();
+        return playing != null && playing;
+    }
+
     // Service binding
     public void setPlaybackService(AudioPlaybackService service) {
         this.playbackService = service;
@@ -273,7 +328,11 @@ import java.util.HashMap;
     @Override
     protected void onCleared() {
         super.onCleared();
-        saveState();
+        // Only save state if there's actual playback data
+        Audiobook book = currentAudiobook.getValue();
+        if (book != null && book.getUrl() != null) {
+            saveState();
+        }
     }
 
     /**
@@ -281,7 +340,6 @@ import java.util.HashMap;
      */
     public static class Factory extends ViewModelProvider.AndroidViewModelFactory {
         private final Application application;
-
         public Factory(@NonNull Application application) {
             super(application);
             this.application = application;
@@ -296,5 +354,34 @@ import java.util.HashMap;
             }
             throw new IllegalArgumentException("Unknown ViewModel class");
         }
+    }
+
+    /**
+     * Check if there is saved state to restore
+     */
+    public boolean hasSavedState() {
+        String audiobookUrl = prefs.getString(KEY_CURRENT_AUDIOBOOK_URL, null);
+        return audiobookUrl != null && !audiobookUrl.isEmpty();
+    }
+
+    /**
+     * Get saved track index for restoration
+     */
+    public int getSavedTrackIndex() {
+        return prefs.getInt(KEY_CURRENT_TRACK_INDEX, 0);
+    }
+
+    /**
+     * Get saved position for restoration
+     */
+    public long getSavedPosition() {
+        return prefs.getLong(KEY_PLAYBACK_POSITION, 0);
+    }
+
+    /**
+     * Check if playback was saved as playing
+     */
+    public boolean wasSavedAsPlaying() {
+        return prefs.getBoolean(KEY_IS_PLAYING, false);
     }
 }
