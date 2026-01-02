@@ -86,8 +86,10 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
                                 Log.d(TAG, "Playback state changed: " + isPlaying);
+                                playbackService.getPlayer().play();
                                 viewModel.setIsPlaying(isPlaying);
                                 updatePlayPauseButtons(isPlaying);
+
 
                                 // Start or stop progress updates
                                 if (isPlaying) {
@@ -176,7 +178,8 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
         // Play/Pause button
         miniBinding.playPauseButton.setOnClickListener(v -> {
             Log.d(TAG, "Mini player play/pause clicked");
-            viewModel.togglePlayPause();
+            playbackService.getPlayer().play();
+            //viewModel.togglePlayPause();
         });
 
         // Close button
@@ -418,6 +421,7 @@ import com.example.goldenaudiobook.viewmodel.FloatingPlayerViewModel;
             Long duration = viewModel.getDuration().getValue();
             Long position = viewModel.getCurrentPosition().getValue();
             if (duration != null && duration > 0 && position != null) {
+                Log.i(TAG, "updateExpandedPlayerSeekBar: "+duration);
                 updateProgress(position, duration);
             }
         }

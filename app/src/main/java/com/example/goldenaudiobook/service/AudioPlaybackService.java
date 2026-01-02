@@ -665,10 +665,12 @@ public class AudioPlaybackService extends Service {
             if (player.isPlaying()) {
                 player.pause();
             } else {
+                player.isPlaying();
                 player.play();
             }
         } else {
             Log.e(TAG, "Player is null, cannot toggle play/pause");
+
         }
     }
 

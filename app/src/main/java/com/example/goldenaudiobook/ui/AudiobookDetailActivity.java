@@ -630,7 +630,10 @@ import java.util.List;
     protected void onStop() {
         super.onStop();
         Log.d(TAG, "onStop");
-        stopProgressUpdate();
+        // Save playback state when activity goes to background
+        if (floatingPlayerViewModel != null) {
+            floatingPlayerViewModel.saveState();
+        }
     }
 
     @Override
@@ -651,6 +654,9 @@ import java.util.List;
         // Unbind from service
         if (serviceBound) {
             if (playbackService != null) {
+                if (floatingPlayerViewModel != null) {
+                    floatingPlayerViewModel.saveState();
+                }
                 playbackService.removePlaybackStateListener();
             }
             unbindService(serviceConnection);
