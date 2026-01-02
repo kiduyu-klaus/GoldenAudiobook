@@ -225,6 +225,36 @@ import java.util.List;
         binding.trackList.setAdapter(trackAdapter);
     }
 
+
+
+    /**
+     * Setup the "All books by author" button
+     */
+    private void setupAuthorButton(Audiobook audiobook) {
+        String authorUrl = audiobook.getAuthorUrl();
+        if (authorUrl != null && !authorUrl.isEmpty()) {
+            binding.btnAllBooksByAuthor.setVisibility(View.VISIBLE);
+            binding.btnAllBooksByAuthor.setOnClickListener(v -> {
+                Log.i(TAG, "setupAuthorButton: clicked "+authorUrl);
+                navigateToAuthorBooks(authorUrl, audiobook.getDisplayAuthor());
+            });
+        } else {
+            binding.btnAllBooksByAuthor.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Navigate to AuthorAllBooksFragment
+     */
+    private void navigateToAuthorBooks(String authorUrl, String authorName) {
+        android.content.Intent intent = new android.content.Intent(this, MainActivity.class);
+        intent.putExtra("navigate_to_author", true);
+        intent.putExtra("authorUrl", authorUrl);
+        intent.putExtra("authorName", authorName);
+        intent.setFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+    }
+
     private void setupPlayerControls() {
         // Play/Pause button
         binding.playPauseButton.setOnClickListener(v -> {
@@ -378,7 +408,8 @@ import java.util.List;
         // Set author
         String author = audiobook.getDisplayAuthor();
         binding.bookAuthor.setText(author);
-
+        // Setup "All books by author" button
+        setupAuthorButton(audiobook);
         // Set categories
         List<String> categories = audiobook.getCategories();
         if (categories != null && !categories.isEmpty()) {

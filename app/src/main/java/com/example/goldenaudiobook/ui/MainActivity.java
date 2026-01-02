@@ -2,6 +2,7 @@ package com.example.goldenaudiobook.ui;
 
 import static com.example.goldenaudiobook.util.Utils.getDialogPowerMenu;
 
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -38,7 +39,7 @@ import com.skydoves.powermenu.PowerMenu;
  * Also hosts the FloatingPlayerFragment for persistent audio playback
  */
 @UnstableApi public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
-
+    private static final String TAG = "MainActivity";
     private ActivityMainBinding binding;
     private AppBarConfiguration appBarConfiguration;
     private NavController navController;
@@ -50,6 +51,24 @@ import com.skydoves.powermenu.PowerMenu;
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        Log.i(TAG, "onCreate: "+getIntent().getStringExtra("authorUrl"));
+
+        if (getIntent() != null) {
+            Log.i("AuthorAllBooksFragment", "head to AuthorAllBooksFragment: ");
+            String authorUrl = getIntent().getStringExtra("authorUrl");
+            String authorName = getIntent().getStringExtra("authorName");
+
+            if (authorUrl != null && authorName != null) {
+                Bundle args = new Bundle();
+                args.putString("authorUrl", authorUrl);
+                args.putString("authorName", authorName);
+                navController.navigate(R.id.authorAllBooksFragment, args);
+            }
+
+            // Clear the extra to prevent re-navigation
+            getIntent().removeExtra("navigate_to_author");
+        }
 
         setupToolbar();
         setupNavigation();
@@ -63,11 +82,32 @@ import com.skydoves.powermenu.PowerMenu;
             // Show dialog or alert to enable notifications
             Utils.openNotificationSettings(this);
         }
+        // Handle navigation to author books from AudiobookDetailActivity
+        //handleAuthorNavigation();
 
         View layout = binding.getRoot();
         dialogMenu.showAtCenter(layout);
     }
+    /**
+     * Handle navigation to AuthorAllBooksFragment from AudiobookDetailActivity
+     */
+    private void handleAuthorNavigation() {
+        if (getIntent() != null && getIntent().hasExtra("navigate_to_author")) {
+            Log.i("AuthorAllBooksFragment", "head to AuthorAllBooksFragment: ");
+            String authorUrl = getIntent().getStringExtra("authorUrl");
+            String authorName = getIntent().getStringExtra("authorName");
 
+            if (authorUrl != null && authorName != null) {
+                Bundle args = new Bundle();
+                args.putString("authorUrl", authorUrl);
+                args.putString("authorName", authorName);
+                navController.navigate(R.id.authorAllBooksFragment, args);
+            }
+
+            // Clear the extra to prevent re-navigation
+            getIntent().removeExtra("navigate_to_author");
+        }
+    }
     private void initializeDialogMenu() {
         Log.i("initializeDialogMenu", "initializeDialogMenu: ");
         dialogMenu = getDialogPowerMenu(this, this);
@@ -219,7 +259,12 @@ import com.skydoves.powermenu.PowerMenu;
             floatingPlayerViewModel.saveState();
         }
     }
-
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent); // Important! Update the intent
+        handleAuthorNavigation();
+    }
     @Override
     protected void onDestroy() {
         super.onDestroy();

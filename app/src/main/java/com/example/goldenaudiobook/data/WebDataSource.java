@@ -352,6 +352,121 @@ public class WebDataSource {
      */
 
 
+    /**
+     * Fetch all audiobooks by an author
+     */
+    public void getAuthorAllResultsAudiobooks(String authorUrl, Callback<List<Audiobook>> callback) {
+        executor.execute(() -> {
+            try {
+                List<Audiobook> audiobooks = new ArrayList<>();
+
+                Document doc = Jsoup.connect(authorUrl)
+                        .timeout(TIMEOUT)
+                        .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
+                        .get();
+
+                // Parse posts from author page - use the structure from author pages
+                Elements posts = doc.select("li.ilovewp-post");
+                if (posts.isEmpty()) {
+                    posts = doc.select("article[id^=post-]");
+                }
+                if (posts.isEmpty()) {
+                    posts = doc.select("article.post");
+                }
+
+                Log.i(TAG, "getAuthorAllResultsAudiobooks: Found " + posts.size() + " posts for author URL: " + authorUrl);
+
+                for (Element post : posts) {
+                    Audiobook audiobook = parseAudiobookFromPost(post, "author");
+                    if (audiobook != null && audiobook.getTitle() != null && !audiobook.getTitle().isEmpty()) {
+                        audiobooks.add(audiobook);
+                    }
+                }
+
+                List<Audiobook> finalAudiobooks = audiobooks;
+                mainHandler.post(() -> callback.onSuccess(finalAudiobooks));
+            } catch (IOException e) {
+                Log.e(TAG, "Error fetching author audiobooks: " + authorUrl, e);
+                mainHandler.post(() -> callback.onError(e));
+            }
+        });
+    }
+
+    /**
+     * Parse audiobook from author page posts
+     * Based on the author page HTML structure
+     */
+    private void parseAuthorBooksPost(Element post, Audiobook audiobook) {
+        try {
+            // Parse title from h2.title-post a (same as category structure)
+            Element titleElement = post.selectFirst("h2.title-post a");
+            if (titleElement == null) {
+                titleElement = post.selectFirst(".entry-title a, .post-title a, h2 a");
+            }
+
+            if (titleElement != null) {
+                String[] titleauthor = titleElement.text().trim().split("–");
+                String title = titleauthor[1].trim();
+                String author = titleauthor[0].trim();
+
+                audiobook.setTitle(title.replace("Audiobook","").trim());
+                String url = titleElement.attr("href");
+                audiobook.setUrl(url);
+                audiobook.setAuthor(author.trim());
+                Log.d(TAG, "Author page result title: " + title);
+            }
+
+            // Parse image from .post-cover img or img attachment
+            Element imgElement = post.selectFirst("img");
+            if (imgElement != null) {
+                String imageUrl = imgElement.attr("data-src");
+                if (imageUrl.isEmpty()) {
+                    imageUrl = imgElement.attr("src");
+                }
+                audiobook.setImageUrl(removeDimensions(imageUrl));
+                Log.d(TAG, "Author page result image: " + imageUrl);
+            }
+
+            // Parse categories from .post-meta-category a
+            Elements categoryElements = post.select(".post-meta-category a[rel=category tag]");
+            if (!categoryElements.isEmpty()) {
+                for (Element cat : categoryElements) {
+                    audiobook.addCategory(cat.text());
+                }
+            } else {
+                audiobook.addCategory("Author Result");
+            }
+
+            // Parse date from time.entry-date
+            Element dateElement = post.selectFirst("time.entry-date");
+            if (dateElement == null) {
+                dateElement = post.selectFirst(".posted-on time, .entry-date");
+            }
+
+            if (dateElement != null) {
+                String date = dateElement.text().trim();
+                audiobook.setPublishedDate(date);
+            }
+
+            // Parse author from title if present (format: "Author – Book Title")
+//            if (audiobook.getTitle() != null && audiobook.getTitle().contains("–")) {
+//                String[] parts = audiobook.getTitle().split("–");
+//                if (parts.length > 1) {
+//                    audiobook.setAuthor(parts[0].trim());
+//                }
+//            }
+
+            Log.d(TAG, "Parsed author result: " + audiobook.getTitle());
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing author result post", e);
+        }
+    }
+
+    /**
+     * Parse audiobook from post element based on audiobookcard.txt structure
+     */
+
+
     private Audiobook parseAudiobookFromPost(Element post, String location) {
         try {
             Audiobook audiobook = new Audiobook();
@@ -368,6 +483,9 @@ public class WebDataSource {
                     break;
                 case "search":
                     parseSearchPost(post, audiobook);
+                    break;
+                case "author":
+                    parseAuthorBooksPost(post, audiobook);
                     break;
                 default:
                     // Default parsing logic
@@ -441,30 +559,7 @@ public class WebDataSource {
         audiobook.setPublishedDate("Recent");
     }
 
-    private String getImageUrlHd(String url) {
-        try {
-            // Fetch the detail page
-            Document doc = Jsoup.connect(url)
-                    .timeout(TIMEOUT)
-                    .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
-                    .get();
 
-            // Parse image - get highest resolution from srcset
-            Element imgElement = doc.selectFirst(".post-single img, .entry-content img, .post-cover img");
-            if (imgElement != null) {
-                String imageUrl = getHighestResolutionImage(imgElement);
-
-                Log.i(TAG, "getImageUrlHd: "+imageUrl);
-                return imageUrl;
-            }
-
-            return ""; // Return empty string if no image found
-
-        } catch (IOException e) {
-            Log.e(TAG, "Error fetching HD image from URL: " + url, e);
-            return ""; // Return empty string on error
-        }
-    }
 
     private void parseCategoryPost(Element post, Audiobook audiobook) {
         try {
@@ -627,6 +722,17 @@ public class WebDataSource {
 //                    audiobook.setAuthor(authorElement.text().trim());
 //                }
 
+                // Parse author URL from tags
+                Elements authorUrlElements = doc.select(".tags-links a");
+                if (!authorUrlElements.isEmpty()) {
+                    Element lastAuthorElement = authorUrlElements.last();
+                    String authorUrl = lastAuthorElement.attr("href");
+                    String authorName = lastAuthorElement.text().trim();
+                    Log.i(TAG, "authorUrlElement: " + authorName);
+                    Log.i(TAG, "authorUrlElement: " + authorUrl);
+                    audiobook.setAuthorUrl(authorUrl);
+                }
+
                 // Parse date
                 Element dateElement = doc.selectFirst(".entry-date, time[datetime]");
                 if (dateElement != null) {
@@ -642,6 +748,7 @@ public class WebDataSource {
             }
         });
     }
+
 
     private String getHighestResolutionImage(Element imgElement) {
         String srcset = imgElement.attr("srcset");

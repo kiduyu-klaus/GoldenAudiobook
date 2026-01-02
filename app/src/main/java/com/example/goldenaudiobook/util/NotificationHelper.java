@@ -203,7 +203,7 @@ public class NotificationHelper {
             playerNotificationManager.setUsePreviousAction(true);
             playerNotificationManager.setUseNextAction(true);
             playerNotificationManager.setUsePlayPauseActions(true);
-            playerNotificationManager.setPriority(NotificationCompat.PRIORITY_LOW);
+            playerNotificationManager.setPriority(NotificationCompat.PRIORITY_HIGH);
             playerNotificationManager.setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
 
             // Set the player

@@ -35,9 +35,29 @@
 
         <argument
             android:name="categoryName"
-            app:argType="string"
-            android:defaultValue="Category" />
+            android:defaultValue="Category"
+            app:argType="string" />
+
 
     </fragment>
+
+
+    <fragment
+        android:id="@+id/authorAllBooksFragment"
+        android:name="com.example.goldenaudiobook.ui.AuthorAllBooksFragment"
+        android:label="{authorName}"
+        tools:layout="@layout/fragment_author_all_books">
+
+        <argument
+            android:name="authorUrl"
+            app:argType="string" />
+
+        <argument
+            android:name="authorName"
+            android:defaultValue="Author"
+            app:argType="string" />
+
+    </fragment>
+
 
 </navigation>

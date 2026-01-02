@@ -124,6 +124,29 @@ public class AudiobookRepository {
     }
 
     /**
+     * Get all audiobooks by an author
+     */
+    public void getAuthorAllResultsAudiobooks(String authorUrl, DataCallback<List<Audiobook>> callback) {
+        webDataSource.getAuthorAllResultsAudiobooks(authorUrl, new WebDataSource.Callback<List<Audiobook>>() {
+            @Override
+            public void onSuccess(List<Audiobook> result) {
+                if (result != null) {
+                    callback.onSuccess(result);
+                } else {
+                    callback.onSuccess(new ArrayList<>());
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error getting author audiobooks", e);
+                callback.onError(e);
+            }
+        });
+    }
+
+
+    /**
      * Get audiobooks by category with specific page URL
      */
     public void getCategoryAudiobooksPage(String categoryUrl, String pageUrl, DataCallback<List<Audiobook>> callback) {

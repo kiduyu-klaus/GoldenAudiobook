@@ -13,6 +13,7 @@ public class Audiobook implements Serializable {
     private String url;
     private String imageUrl;
     private String author;
+    private String authorUrl;
     private String description;
     private String publishedDate;
     private List<String> categories;
@@ -71,6 +72,14 @@ public class Audiobook implements Serializable {
 
     public void setAuthor(String author) {
         this.author = author;
+    }
+
+    public String getAuthorUrl() {
+        return authorUrl;
+    }
+
+    public void setAuthorUrl(String authorUrl) {
+        this.authorUrl = authorUrl;
     }
 
     public String getDescription() {
