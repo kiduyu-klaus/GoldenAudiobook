@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel;
 import com.example.goldenaudiobook.data.AudiobookRepository;
 import com.example.goldenaudiobook.model.Audiobook;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,6 +21,10 @@ public class SearchViewModel extends ViewModel {
     private final MutableLiveData<String> error = new MutableLiveData<>();
     private final MutableLiveData<String> currentQuery = new MutableLiveData<>();
     private final MutableLiveData<Boolean> hasSearched = new MutableLiveData<>(false);
+    private final MutableLiveData<String> nextPageUrl = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isLoadingMore = new MutableLiveData<>(false);
+
+    private int currentPage = 1;
 
     public SearchViewModel() {
         this.repository = new AudiobookRepository();
@@ -45,6 +50,14 @@ public class SearchViewModel extends ViewModel {
         return hasSearched;
     }
 
+    public LiveData<String> getNextPageUrl() {
+        return nextPageUrl;
+    }
+
+    public LiveData<Boolean> getIsLoadingMore() {
+        return isLoadingMore;
+    }
+
     /**
      * Search for audiobooks with the given query
      */
@@ -56,9 +69,11 @@ public class SearchViewModel extends ViewModel {
 
         String trimmedQuery = query.trim();
         currentQuery.setValue(trimmedQuery);
+        currentPage = 1;
         isLoading.setValue(true);
         error.setValue(null);
         hasSearched.setValue(true);
+        nextPageUrl.setValue(null);
 
         repository.searchAudiobooks(trimmedQuery, new AudiobookRepository.DataCallback<List<Audiobook>>() {
             @Override
@@ -71,12 +86,76 @@ public class SearchViewModel extends ViewModel {
                     error.postValue(null);
                     searchResults.postValue(result);
                 }
+                // After initial search, check for next page
+                checkForNextPage(trimmedQuery, 1);
             }
 
             @Override
             public void onError(Exception e) {
                 isLoading.postValue(false);
                 error.postValue("Search failed: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Load more search results (pagination)
+     */
+    public void loadMore() {
+        String url = nextPageUrl.getValue();
+        if (url == null || url.isEmpty()) {
+            return;
+        }
+
+        isLoadingMore.setValue(true);
+
+        repository.getSearchResultsFromUrl(url, new AudiobookRepository.DataCallback<List<Audiobook>>() {
+            @Override
+            public void onSuccess(List<Audiobook> result) {
+                isLoadingMore.postValue(false);
+
+                // Append new results to existing list
+                List<Audiobook> currentResults = searchResults.getValue();
+                if (currentResults == null) {
+                    currentResults = new ArrayList<>();
+                }
+
+                List<Audiobook> updatedResults = new ArrayList<>(currentResults);
+                updatedResults.addAll(result);
+                searchResults.postValue(updatedResults);
+
+                // Check for more pages
+                checkForNextPage(currentQuery.getValue(), currentPage + 1);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                isLoadingMore.postValue(false);
+                error.postValue("Failed to load more results: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Check if there are more pages available
+     */
+    private void checkForNextPage(String query, int page) {
+        if (query == null || query.isEmpty()) {
+            return;
+        }
+
+        currentPage = page;
+
+        repository.getNextPageUrl(query, page, new AudiobookRepository.DataCallback<String>() {
+            @Override
+            public void onSuccess(String result) {
+                nextPageUrl.postValue(result);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                // No more pages available
+                nextPageUrl.postValue(null);
             }
         });
     }
@@ -89,5 +168,13 @@ public class SearchViewModel extends ViewModel {
         error.setValue(null);
         hasSearched.setValue(false);
         currentQuery.setValue(null);
+        nextPageUrl.setValue(null);
+        currentPage = 1;
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        repository.shutdown();
     }
 }

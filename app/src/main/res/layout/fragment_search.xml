@@ -141,6 +141,19 @@
         android:layout_marginTop="80dp"
         android:clipToPadding="false"
         android:padding="8dp"
+        android:paddingBottom="80dp"
         tools:listitem="@layout/item_audiobook_card" />
+
+    <!-- Pagination Button (Older Posts) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/olderPostsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:text="Older Posts"
+        android:visibility="gone"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        tools:visibility="visible" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

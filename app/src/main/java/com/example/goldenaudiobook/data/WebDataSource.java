@@ -1080,6 +1080,118 @@ public class WebDataSource {
         return categories;
     }
 
+
+    /**
+     * Search for audiobooks by URL (for pagination)
+     */
+    public void getSearchResultsFromUrl(String url, Callback<List<Audiobook>> callback) {
+        executor.execute(() -> {
+            try {
+                List<Audiobook> audiobooks = new ArrayList<>();
+
+                Log.d(TAG, "Fetching search results from URL: " + url);
+
+                Document doc = Jsoup.connect(url)
+                        .timeout(TIMEOUT)
+                        .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
+                        .get();
+
+                // Parse posts from search results - use the structure from search results
+                Elements posts = doc.select("li.ilovewp-post");
+                if (posts.isEmpty()) {
+                    posts = doc.select("article[id^=post-]");
+                }
+                if (posts.isEmpty()) {
+                    posts = doc.select("article.post");
+                }
+                if (posts.isEmpty()) {
+                    posts = doc.select(".search-result, .result-item");
+                }
+
+                Log.d(TAG, "Pagination found " + posts.size() + " posts");
+
+                for (Element post : posts) {
+                    Audiobook audiobook = parseAudiobookFromPost(post, "search");
+                    if (audiobook != null && audiobook.getTitle() != null && !audiobook.getTitle().isEmpty()) {
+                        audiobooks.add(audiobook);
+                    }
+                }
+
+                List<Audiobook> finalAudiobooks = audiobooks;
+                mainHandler.post(() -> callback.onSuccess(finalAudiobooks));
+            } catch (IOException e) {
+                Log.e(TAG, "Error fetching search results from URL: " + url, e);
+                mainHandler.post(() -> callback.onError(e));
+            }
+        });
+    }
+
+    /**
+     * Parse the next page URL from pagination
+     * Looks for .nav-previous a[href] element which contains "Older Posts" link
+     */
+    public void getNextPageUrl(String searchQuery, int currentPage, Callback<String> callback) {
+        executor.execute(() -> {
+            try {
+                // Construct search URL
+                String encodedQuery = searchQuery.replace(" ", "+");
+                String searchUrl;
+
+                if (currentPage == 1) {
+                    searchUrl = BASE_URL + "?s=" + encodedQuery;
+                } else {
+                    searchUrl = BASE_URL + "page/" + currentPage + "/?s=" + encodedQuery;
+                }
+
+                Log.d(TAG, "Checking next page from URL: " + searchUrl);
+
+                Document doc = Jsoup.connect(searchUrl)
+                        .timeout(TIMEOUT)
+                        .userAgent("Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36")
+                        .get();
+
+                // Parse next page URL from .nav-previous a[href]
+                String nextPageUrl = parseNextPageUrl(doc);
+
+                Log.d(TAG, "Next page URL: " + nextPageUrl);
+
+                String finalNextPageUrl = nextPageUrl;
+                mainHandler.post(() -> callback.onSuccess(finalNextPageUrl));
+            } catch (IOException e) {
+                Log.e(TAG, "Error getting next page URL for query: " + searchQuery, e);
+                mainHandler.post(() -> callback.onError(e));
+            }
+        });
+    }
+
+    /**
+     * Parse the next page URL from pagination element
+     * HTML structure: <div class="nav-previous"><a href="https://goldenaudiobook.net/page/2/?s=Lee+child&amp;id=28332">...
+     */
+    private String parseNextPageUrl(Document doc) {
+        try {
+            // Try multiple selectors for pagination links
+            Element nextPageLink = doc.selectFirst(".nav-previous a");
+            if (nextPageLink == null) {
+                nextPageLink = doc.selectFirst(".nav-next a");
+            }
+            if (nextPageLink == null) {
+                nextPageLink = doc.selectFirst("a.page-numbers[href]");
+            }
+
+            if (nextPageLink != null) {
+                String href = nextPageLink.attr("href");
+                if (!href.isEmpty()) {
+                    Log.d(TAG, "Found next page URL: " + href);
+                    return href;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing next page URL", e);
+        }
+        return null;
+    }
+
     /**
      * Shutdown the executor
      */

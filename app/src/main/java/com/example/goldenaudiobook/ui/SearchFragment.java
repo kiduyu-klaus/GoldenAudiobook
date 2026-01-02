@@ -10,8 +10,10 @@ import android.view.inputmethod.EditorInfo;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.example.goldenaudiobook.R;
@@ -49,6 +51,7 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
 
         setupRecyclerView();
         setupSearchInput();
+        setupPaginationButton();
         observeViewModel();
     }
 
@@ -91,6 +94,12 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
         });
     }
 
+    private void setupPaginationButton() {
+        binding.olderPostsButton.setOnClickListener(v -> {
+            viewModel.loadMore();
+        });
+    }
+
     private void observeViewModel() {
         viewModel.getSearchResults().observe(getViewLifecycleOwner(), audiobooks -> {
             if (audiobooks != null && !audiobooks.isEmpty()) {
@@ -105,6 +114,14 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
             binding.progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         });
 
+        viewModel.getIsLoadingMore().observe(getViewLifecycleOwner(), isLoadingMore -> {
+            if (isLoadingMore) {
+                binding.olderPostsButton.setText("Loading...");
+            } else {
+                binding.olderPostsButton.setText("Older Posts");
+            }
+        });
+
         viewModel.getError().observe(getViewLifecycleOwner(), error -> {
             if (error != null && !error.isEmpty()) {
                 showError(error);
@@ -113,6 +130,15 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
 
         viewModel.getCurrentQuery().observe(getViewLifecycleOwner(), query -> {
             // Could update UI with current search term if needed
+        });
+
+        viewModel.getNextPageUrl().observe(getViewLifecycleOwner(), url -> {
+            // Show/hide pagination button based on whether there's a next page
+            if (url != null && !url.isEmpty()) {
+                binding.olderPostsButton.setVisibility(View.VISIBLE);
+            } else {
+                binding.olderPostsButton.setVisibility(View.GONE);
+            }
         });
     }
 
@@ -134,6 +160,7 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
         binding.searchResultsRecyclerView.setVisibility(View.GONE);
         binding.emptyStateLayout.setVisibility(View.VISIBLE);
         binding.errorStateLayout.setVisibility(View.GONE);
+        binding.olderPostsButton.setVisibility(View.GONE);
 
         String query = viewModel.getCurrentQuery().getValue();
         if (query != null && !query.isEmpty()) {
@@ -148,6 +175,7 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
         binding.emptyStateLayout.setVisibility(View.GONE);
         binding.errorStateLayout.setVisibility(View.VISIBLE);
         binding.errorText.setText(errorMessage);
+        binding.olderPostsButton.setVisibility(View.GONE);
     }
 
     private void hideKeyboard() {
@@ -160,7 +188,7 @@ public class SearchFragment extends Fragment implements AudiobookAdapter.OnAudio
         }
     }
 
-    @Override
+    @OptIn(markerClass = UnstableApi.class) @Override
     public void onAudiobookClick(Audiobook audiobook) {
         if (audiobook.getUrl() != null && !audiobook.getUrl().isEmpty()) {
             // Navigate to audiobook detail

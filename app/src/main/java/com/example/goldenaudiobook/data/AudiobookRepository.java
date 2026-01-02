@@ -260,6 +260,46 @@ public class AudiobookRepository {
     }
 
     /**
+     * Get search results from a specific URL (for pagination)
+     */
+    public void getSearchResultsFromUrl(String url, DataCallback<List<Audiobook>> callback) {
+        webDataSource.getSearchResultsFromUrl(url, new WebDataSource.Callback<List<Audiobook>>() {
+            @Override
+            public void onSuccess(List<Audiobook> result) {
+                if (result != null) {
+                    callback.onSuccess(result);
+                } else {
+                    callback.onSuccess(new ArrayList<>());
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error getting search results from URL", e);
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
+     * Get next page URL for search pagination
+     */
+    public void getNextPageUrl(String searchQuery, int currentPage, DataCallback<String> callback) {
+        webDataSource.getNextPageUrl(searchQuery, currentPage, new WebDataSource.Callback<String>() {
+            @Override
+            public void onSuccess(String result) {
+                callback.onSuccess(result);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error getting next page URL", e);
+                callback.onError(e);
+            }
+        });
+    }
+
+    /**
      * Cleanup resources
      */
     public void shutdown() {
