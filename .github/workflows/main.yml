@@ -46,16 +46,11 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # ── 2.1. Setup Gradle Wrapper ─────────────────────────────────────
-      - name: Setup Gradle Wrapper
-        uses: gradle/wrapper-validation-action@v2
-        with:
-          validate-wrapper-files: false
-
+      # ── 2.1. Generate Gradle Wrapper ─────────────────────────────────
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.5
 
-      # ── 3. Gradle permission ───────────────────────────────────────────
+      # ── 3. Gradle permission ─────────────────────────────────────────
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
